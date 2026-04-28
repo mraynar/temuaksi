@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "564934186228",
+    "project_id": "temu-aksi",
+    "storage_bucket": "temu-aksi.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:564934186228:android:9fc36384f9e980bdef3aa1",
+        "android_client_info": {
+          "package_name": "com.example.temu_aksi"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "564934186228-307qip7qmrel3rq093n5g6uid0n33bnv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDBpeGYnM-AULjgOe-0bykskkQgpzVbSd0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "564934186228-307qip7qmrel3rq093n5g6uid0n33bnv.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "564934186228-fbvnjgbi723st11b13ms39dfqf00dpo4.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.temuAksi"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
