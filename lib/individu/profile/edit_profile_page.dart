@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import '../../theme/app_colors.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -69,7 +70,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Color(0xFF0D1B4E),
+              primary: AppColors.primary,
               onSurface: Color(0xFF1D1D1F),
             ),
           ),
@@ -128,7 +129,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   void _updateProfile() async {
     if (_nameController.text.isEmpty || _phoneController.text.isEmpty) {
-      _showSnackBar("Nama dan Nomor Telepon tidak boleh kosong", Colors.red);
+      _showSnackBar(
+          "Nama dan Nomor Telepon tidak boleh kosong", AppColors.error);
       return;
     }
 
@@ -155,11 +157,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
       });
 
       if (!mounted) return;
-      _showSnackBar("Profil berhasil diperbarui!", const Color(0xFF0D1B4E));
+      _showSnackBar("Profil berhasil diperbarui!", AppColors.primary);
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      _showSnackBar("Gagal memperbarui profil: $e", Colors.red);
+      _showSnackBar("Gagal memperbarui profil: $e", AppColors.error);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -178,7 +180,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9F9F9),
+      backgroundColor: AppColors.neutral,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -235,7 +237,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           child: Container(
                             padding: const EdgeInsets.all(8),
                             decoration: const BoxDecoration(
-                                color: Color(0xFF0D1B4E),
+                                color: AppColors.primary,
                                 shape: BoxShape.circle),
                             child: const Icon(Icons.camera_alt_rounded,
                                 color: Colors.white, size: 20),
@@ -250,7 +252,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       child: const Text(
                         "Hapus Foto",
                         style: TextStyle(
-                          color: Colors.red,
+                          color: AppColors.error,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
@@ -275,7 +277,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _updateProfile,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0D1B4E),
+                  backgroundColor: AppColors.primary,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16)),
                   elevation: 0,

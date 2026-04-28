@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../auth/login_page.dart';
+import '../theme/app_colors.dart';
 
 class LandingCarousel extends StatefulWidget {
   const LandingCarousel({super.key});
@@ -124,7 +125,7 @@ class _LandingCarouselState extends State<LandingCarousel> {
                   width: _currentPage == index ? 24 : 6,
                   decoration: BoxDecoration(
                     color: _currentPage == index
-                        ? const Color(0xFF0D1B4E)
+                        ? AppColors.primary
                         : const Color(0xFFD2D2D7),
                     borderRadius: BorderRadius.circular(3),
                   ),
@@ -148,8 +149,7 @@ class _LandingCarouselState extends State<LandingCarousel> {
                     imagePath: "assets/images/landing_page/Group.png",
                     label: "Lanjutkan sebagai Tamu",
                     labelColor: const Color(0xFF86868B),
-                    iconColor: const Color(
-                        0xFF86868B), 
+                    iconColor: const Color(0xFF86868B),
                     onTap: () {},
                     iconSize: 32,
                   ),
@@ -167,7 +167,9 @@ class _LandingCarouselState extends State<LandingCarousel> {
                           TextSpan(text: "Sudah punya akun? "),
                           TextSpan(
                             text: "Masuk",
-                            style: TextStyle(fontWeight: FontWeight.w700),
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary),
                           ),
                         ],
                       ),
@@ -189,7 +191,7 @@ class _LandingCarouselState extends State<LandingCarousel> {
     required VoidCallback onTap,
     required double iconSize,
     Color labelColor = const Color(0xFF1D1D1F),
-    Color? iconColor, 
+    Color? iconColor,
   }) {
     return Container(
       width: double.infinity,
@@ -198,7 +200,7 @@ class _LandingCarouselState extends State<LandingCarousel> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(8),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 12,
             offset: const Offset(0, 4),
           )
@@ -222,7 +224,7 @@ class _LandingCarouselState extends State<LandingCarousel> {
               width: iconSize,
               height: iconSize,
               fit: BoxFit.contain,
-              color: iconColor, 
+              color: iconColor,
             ),
             const SizedBox(width: 12),
             Text(

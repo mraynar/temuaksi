@@ -13,7 +13,7 @@ dependencies:
   flutter_svg: ^2.0.10+1
   google_fonts: ^8.0.2
   firebase_core: ^4.7.0
-  smooth_page_indicator: ^2.0.1
+  smooth_page_indicator: ^1.1.0
   firebase_auth: ^6.4.0
   google_sign_in: ^7.2.0
   googleapis: ^13.2.0
@@ -21,14 +21,15 @@ dependencies:
   cloud_firestore: ^6.3.0
   image_picker: ^1.2.1
   firebase_storage: ^13.3.0
-  intl: ^0.20.2
+  intl: ^0.20.2 # Perbarui ke versi ini sesuai permintaan SDK
+  file_picker: ^6.1.1
   flutter_localizations:
     sdk: flutter
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
+  flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true

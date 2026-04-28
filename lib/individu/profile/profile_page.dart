@@ -5,6 +5,7 @@ import '../../auth/login_page.dart';
 import 'edit_profile_page.dart';
 import 'keamanan_page.dart';
 import 'faq_page.dart';
+import '../../theme/app_colors.dart';
 
 class CompanyProfilePage extends StatefulWidget {
   const CompanyProfilePage({super.key});
@@ -35,7 +36,7 @@ class _CompanyProfilePageState extends State<CompanyProfilePage> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF9F9F9),
+      backgroundColor: AppColors.neutral,
       body: StreamBuilder<DocumentSnapshot>(
         stream: _firestore.collection('users').doc(user!.uid).snapshots(),
         builder: (context, snapshot) {
@@ -46,7 +47,7 @@ class _CompanyProfilePageState extends State<CompanyProfilePage> {
 
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
-                child: CircularProgressIndicator(color: Color(0xFF0D1B4E)));
+                child: CircularProgressIndicator(color: AppColors.primary));
           }
 
           if (!snapshot.hasData || !snapshot.data!.exists) {
@@ -87,11 +88,10 @@ class _CompanyProfilePageState extends State<CompanyProfilePage> {
                     height: 110,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border:
-                          Border.all(color: const Color(0xFFF2F2F7), width: 4),
+                      border: Border.all(color: AppColors.neutral, width: 4),
                     ),
                     child: CircleAvatar(
-                      backgroundColor: const Color(0xFFF2F2F7),
+                      backgroundColor: AppColors.neutral,
                       backgroundImage: photoUrl.isNotEmpty
                           ? NetworkImage(
                               "$photoUrl?t=${DateTime.now().millisecondsSinceEpoch}")
@@ -192,9 +192,8 @@ class _CompanyProfilePageState extends State<CompanyProfilePage> {
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-            color: const Color(0xFFF2F2F7),
-            borderRadius: BorderRadius.circular(10)),
-        child: Icon(icon, color: const Color(0xFF0D1B4E), size: 20),
+            color: AppColors.neutral, borderRadius: BorderRadius.circular(10)),
+        child: const Icon(Icons.person_rounded, color: AppColors.primary, size: 20),
       ),
       title: Text(title,
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
@@ -209,12 +208,12 @@ class _CompanyProfilePageState extends State<CompanyProfilePage> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-            color: const Color(0xFFFFE5E5),
+            color: AppColors.error.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20)),
         child: const Center(
           child: Text("Keluar Akun",
               style: TextStyle(
-                  color: Color(0xFFFF3B30),
+                  color: AppColors.error,
                   fontWeight: FontWeight.w700,
                   fontSize: 15)),
         ),

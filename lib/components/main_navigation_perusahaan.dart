@@ -1,25 +1,26 @@
 import 'package:flutter/material.dart';
-import 'package:temu_aksi/individu/riwayat/riwayat_proposal_page.dart';
-import '../individu/beranda/home_page.dart';
-import '../individu/profile/profile_page.dart';
-import '../individu/explore/explore_page.dart';
+import 'package:temu_aksi/perusahaan/profile/profile_perusahaan_page.dart';
+import '../perusahaan/aksi/aksi_perusahaan_page.dart';
+import '../perusahaan/beranda/home_perusahaan.dart';
+import '../perusahaan/proposal/daftar_proposal_page.dart';
 import '../theme/app_colors.dart';
 
-class MainNavigation extends StatefulWidget {
-  const MainNavigation({super.key});
+class MainNavigationPerusahaan extends StatefulWidget {
+  const MainNavigationPerusahaan({super.key});
 
   @override
-  State<MainNavigation> createState() => _MainNavigationState();
+  State<MainNavigationPerusahaan> createState() =>
+      _MainNavigationPerusahaanState();
 }
 
-class _MainNavigationState extends State<MainNavigation> {
+class _MainNavigationPerusahaanState extends State<MainNavigationPerusahaan> {
   int _selectedIndex = 0;
 
   final List<Widget> _pages = [
-    const IndividuHomePage(),
-    const ExplorePage(),
-    const RiwayatProposalPage(),
-    const Center(child: Text("Volunteer")),
+    const CompanyHomePage(),
+    const ManagementAksiPage(),
+    const DaftarProposalPage(),
+    const Center(child: Text("Halaman Cari Volunteer")),
     const CompanyProfilePage(),
   ];
 
@@ -59,15 +60,30 @@ class _MainNavigationState extends State<MainNavigation> {
           showUnselectedLabels: true,
           items: const [
             BottomNavigationBarItem(
-                icon: Icon(Icons.home_rounded), label: 'Home'),
+              icon: Icon(Icons.home_rounded),
+              activeIcon: Icon(Icons.home_rounded),
+              label: 'Home',
+            ),
             BottomNavigationBarItem(
-                icon: Icon(Icons.explore_rounded), label: 'Explore'),
+              icon: Icon(Icons.rocket_launch_rounded),
+              activeIcon: Icon(Icons.rocket_launch_rounded),
+              label: 'Aksi',
+            ),
             BottomNavigationBarItem(
-                icon: Icon(Icons.history_rounded), label: 'Riwayat'),
+              icon: Icon(Icons.assignment_rounded),
+              activeIcon: Icon(Icons.assignment_rounded),
+              label: 'Proposal',
+            ),
             BottomNavigationBarItem(
-                icon: Icon(Icons.people_rounded), label: 'Volunteer'),
+              icon: Icon(Icons.people_rounded),
+              activeIcon: Icon(Icons.people_rounded),
+              label: 'Volunteer',
+            ),
             BottomNavigationBarItem(
-                icon: Icon(Icons.person_rounded), label: 'Profil'),
+              icon: Icon(Icons.business_rounded),
+              activeIcon: Icon(Icons.business_rounded),
+              label: 'Profil',
+            ),
           ],
         ),
       ),

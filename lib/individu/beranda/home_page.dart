@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../theme/app_colors.dart';
 
 class IndividuHomePage extends StatefulWidget {
   const IndividuHomePage({super.key});
@@ -10,7 +11,6 @@ class IndividuHomePage extends StatefulWidget {
 }
 
 class _IndividuHomePageState extends State<IndividuHomePage> {
-
   final User? user = FirebaseAuth.instance.currentUser;
   String _photoUrl = '';
 
@@ -49,7 +49,7 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
             expandedHeight: 155,
             pinned: true,
             elevation: 0,
-            backgroundColor: const Color(0xFF0D1B4E),
+            backgroundColor: AppColors.primary,
             automaticallyImplyLeading: false,
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
@@ -81,14 +81,14 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                             ),
                           ],
                         ),
-
                         GestureDetector(
                           onTap: () {
                             debugPrint("Pindah ke halaman Profile");
                           },
                           child: CircleAvatar(
                             radius: 20,
-                            backgroundColor: const Color(0xFF1D2B5E),
+                            backgroundColor:
+                                AppColors.tertiary.withValues(alpha: 0.3),
                             backgroundImage: _photoUrl.isNotEmpty
                                 ? NetworkImage(_photoUrl)
                                 : null,
@@ -133,7 +133,7 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child:
-                              const Icon(Icons.tune, color: Color(0xFF0D1B4E)),
+                              const Icon(Icons.tune, color: AppColors.primary),
                         ),
                       ],
                     ),
@@ -142,20 +142,28 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
               ),
             ),
           ),
-
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+              padding: const EdgeInsets.fromLTRB(0, 20, 0, 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildPromotionBanner(),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: _buildPromotionBanner(),
+                  ),
                   const SizedBox(height: 25),
-                  _buildSectionHeader("Kategori Event"),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: _buildSectionHeader("Kategori Event"),
+                  ),
                   const SizedBox(height: 15),
-                  _buildCategoryGrid(),
+                  _buildCategoryList(),
                   const SizedBox(height: 30),
-                  _buildSectionHeader("Rekomendasi Perusahaan"),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: _buildSectionHeader("Rekomendasi Perusahaan"),
+                  ),
                   const SizedBox(height: 15),
                   _buildCompanyList(),
                   const SizedBox(height: 100),
@@ -173,7 +181,7 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
       width: double.infinity,
       height: 150,
       decoration: BoxDecoration(
-        color: const Color(0xFF1D2B5E),
+        color: AppColors.primary,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Stack(
@@ -195,8 +203,8 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                 ElevatedButton(
                   onPressed: () {},
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: const Color(0xFF0D1B4E),
+                    backgroundColor: AppColors.secondary,
+                    foregroundColor: AppColors.primary,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20)),
@@ -223,42 +231,53 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
     );
   }
 
-  Widget _buildCategoryGrid() {
+  Widget _buildCategoryList() {
     final List<Map<String, dynamic>> categories = [
+      {"name": "Teknologi", "img": "teknologi.png"},
       {"name": "Lingkungan", "img": "lingkungan.png"},
-      {"name": "Sosial & Kemanusiaan", "img": "sosial dan kemanusiaan.png"},
+      {"name": "Sosial", "img": "sosial dan kemanusiaan.png"},
+      {"name": "Hiburan", "img": "hiburan.png"},
       {"name": "Kesehatan", "img": "kesehatan.png"},
       {"name": "Olahraga", "img": "olahraga.png"},
     ];
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: categories.map((cat) {
-        return SizedBox(
-          width: 75,
-          child: Column(
-            children: [
-              Container(
-                height: 60,
-                width: 60,
-                padding: const EdgeInsets.all(12),
-                decoration: const BoxDecoration(
-                    color: Color(0xFFF2F2F7), shape: BoxShape.circle),
-                child: Image.asset('assets/images/beranda/${cat['img']}',
-                    fit: BoxFit.contain),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                cat['name'],
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 10, fontWeight: FontWeight.w600, height: 1.2),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
+    return SizedBox(
+      height: 110,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: categories.length,
+        itemBuilder: (context, index) {
+          final cat = categories[index];
+          return Container(
+            width: 85,
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            child: Column(
+              children: [
+                Container(
+                  height: 60,
+                  width: 60,
+                  padding: const EdgeInsets.all(12),
+                  decoration: const BoxDecoration(
+                      color: AppColors.neutral, shape: BoxShape.circle),
+                  child: Image.asset('assets/images/beranda/${cat['img']}',
+                      fit: BoxFit.contain),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  cat['name'],
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.w600, height: 1.2),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -293,7 +312,9 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
     return SizedBox(
       height: 230,
       child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
         itemCount: companies.length,
         itemBuilder: (context, index) {
           final comp = companies[index];
@@ -303,7 +324,7 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFF2F2F7)),
+              border: Border.all(color: AppColors.neutral),
               boxShadow: [
                 BoxShadow(
                     color: Colors.black.withValues(alpha: 0.05),
@@ -329,14 +350,13 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                            color:
-                                const Color(0xFF0D1B4E).withValues(alpha: 0.1),
+                            color: AppColors.primary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(4)),
                         child: Text(comp['type']!,
                             style: const TextStyle(
                                 fontSize: 9,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFF0D1B4E))),
+                                color: AppColors.primary)),
                       ),
                       const SizedBox(height: 8),
                       Text(comp['name']!,
@@ -378,7 +398,7 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
         const Text("Lihat semua",
             style: TextStyle(
                 fontSize: 12,
-                color: Color(0xFF0D1B4E),
+                color: AppColors.primary,
                 fontWeight: FontWeight.w600)),
       ],
     );

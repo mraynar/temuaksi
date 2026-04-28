@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../individu/beranda/home_page.dart';
 import 'register_role_page.dart';
-import '../components/main_navigation.dart';
+import '../theme/app_colors.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -31,25 +30,28 @@ class _LoginPageState extends State<LoginPage> {
         password: _passwordController.text.trim(),
       );
 
-      if (mounted) {
-        setState(() => _isLoading = false);
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const MainNavigation()),
-          (route) => false,
-        );
-      }
+      if (!mounted) return;
+
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        '/',
+        (route) => false,
+      );
     } on FirebaseAuthException catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        String message = "Terjadi kesalahan";
-        if (e.code == 'user-not-found') message = "Pengguna tidak ditemukan.";
-        if (e.code == 'wrong-password') message = "Kata sandi salah.";
-        if (e.code == 'invalid-email') message = "Format email tidak valid.";
-        _showSnackBar(message);
+      if (!mounted) return;
+
+      setState(() => _isLoading = false);
+
+      String message = "Terjadi kesalahan";
+
+      if (e.code == 'user-not-found') {
+        message = "Pengguna tidak ditemukan";
+      } else if (e.code == 'wrong-password') {
+        message = "Kata sandi salah";
+      } else if (e.code == 'invalid-email') {
+        message = "Format email tidak valid";
       }
-    } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+
+      _showSnackBar(message);
     }
   }
 
@@ -57,7 +59,7 @@ class _LoginPageState extends State<LoginPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -124,7 +126,7 @@ class _LoginPageState extends State<LoginPage> {
                   child: const Text(
                     "Lupa Kata Sandi?",
                     style: TextStyle(
-                        color: Color(0xFF0D1B4E),
+                        color: AppColors.primary,
                         fontWeight: FontWeight.w600,
                         fontSize: 14),
                   ),
@@ -167,7 +169,7 @@ class _LoginPageState extends State<LoginPage> {
                         TextSpan(
                           text: "Daftar",
                           style: TextStyle(
-                              color: Color(0xFF0D1B4E),
+                              color: AppColors.primary,
                               fontWeight: FontWeight.bold),
                         ),
                       ],
@@ -205,8 +207,7 @@ class _LoginPageState extends State<LoginPage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-          color: const Color(0xFFF5F5F7),
-          borderRadius: BorderRadius.circular(14)),
+          color: AppColors.neutral, borderRadius: BorderRadius.circular(14)),
       child: TextField(
         controller: controller,
         obscureText: obscureText,
@@ -244,7 +245,7 @@ class _LoginPageState extends State<LoginPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-              color: const Color(0xFF0D1B4E).withAlpha(30),
+              color: AppColors.primary.withValues(alpha: 0.1),
               blurRadius: 15,
               offset: const Offset(0, 8))
         ],
@@ -252,8 +253,8 @@ class _LoginPageState extends State<LoginPage> {
       child: ElevatedButton(
         onPressed: _isLoading ? null : _handleLogin,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF0D1B4E),
-          disabledBackgroundColor: const Color(0xFF0D1B4E).withAlpha(100),
+          backgroundColor: AppColors.primary,
+          disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.4),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           elevation: 0,
@@ -282,7 +283,7 @@ class _LoginPageState extends State<LoginPage> {
         border: Border.all(color: const Color(0xFFE5E5E7), width: 1.5),
       ),
       child: OutlinedButton(
-        onPressed: null, 
+        onPressed: null,
         style: OutlinedButton.styleFrom(
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

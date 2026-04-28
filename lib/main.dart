@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+
 import 'firebase_options.dart';
 import 'screens/landing_page.dart';
 import 'components/main_navigation.dart';
+import 'components/main_navigation_perusahaan.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,6 +37,15 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'TemuAksi',
       debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        scaffoldBackgroundColor: Colors.white,
+        textTheme: GoogleFonts.plusJakartaSansTextTheme(),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF0D1B4E),
+          primary: const Color(0xFF0D1B4E),
+        ),
+      ),
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -43,21 +55,6 @@ class MyApp extends StatelessWidget {
         Locale('id', 'ID'),
         Locale('en', 'US'),
       ],
-      theme: ThemeData(
-        textTheme: GoogleFonts.plusJakartaSansTextTheme(),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0D1B4E),
-          primary: const Color(0xFF0D1B4E),
-        ),
-        useMaterial3: true,
-        scaffoldBackgroundColor: Colors.white,
-        pageTransitionsTheme: const PageTransitionsTheme(
-          builders: {
-            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-            TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-          },
-        ),
-      ),
       home: const AuthWrapper(),
     );
   }
@@ -70,24 +67,63 @@ class AuthWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFF0D1B4E),
-                strokeWidth: 2,
-              ),
-            ),
-          );
+      builder: (context, authSnapshot) {
+        if (authSnapshot.connectionState == ConnectionState.waiting) {
+          return const LoadingScreen();
         }
 
-        if (snapshot.hasData) {
-          return const MainNavigation();
+        final user = authSnapshot.data;
+
+        if (user == null) {
+          return const LandingPage();
         }
 
-        return const LandingPage();
+        return StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .snapshots(),
+          builder: (context, roleSnapshot) {
+            if (roleSnapshot.connectionState == ConnectionState.waiting) {
+              return const LoadingScreen();
+            }
+
+            if (roleSnapshot.hasError) {
+              return const LandingPage();
+            }
+
+            if (!roleSnapshot.hasData || !roleSnapshot.data!.exists) {
+              return const LoadingScreen();
+            }
+
+            final data = roleSnapshot.data!.data() as Map<String, dynamic>?;
+
+            final role = (data?['role'] ?? 'individu').toString().toLowerCase();
+
+            if (role == 'perusahaan') {
+              return const MainNavigationPerusahaan();
+            }
+
+            return const MainNavigation();
+          },
+        );
       },
+    );
+  }
+}
+
+class LoadingScreen extends StatelessWidget {
+  const LoadingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF0D1B4E),
+          strokeWidth: 2,
+        ),
+      ),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_colors.dart';
 
 class FaqPage extends StatelessWidget {
   const FaqPage({super.key});
@@ -6,7 +7,7 @@ class FaqPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9F9F9),
+      backgroundColor: AppColors.neutral,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -54,11 +55,13 @@ class FaqPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF2F2F7)),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
       ),
       child: Theme(
         data: ThemeData().copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
+          iconColor: AppColors.primary,
+          collapsedIconColor: const Color(0xFF86868B),
           title: Text(
             question,
             style: const TextStyle(

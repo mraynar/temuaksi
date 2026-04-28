@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import '../constants.dart';
-import 'carousel_view.dart'; 
+import '../theme/app_colors.dart';
+import 'carousel_view.dart';
 
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
@@ -81,7 +81,7 @@ class _LandingPageState extends State<LandingPage>
                     const TextSpan(text: "Temu"),
                     TextSpan(
                         text: "Aksi",
-                        style: TextStyle(color: AppColors.tertiary)),
+                        style: TextStyle(color: AppColors.secondary)),
                   ],
                 ),
               ),

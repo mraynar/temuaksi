@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
 import 'register_individu_page.dart';
+import 'register_perusahaan_page.dart';
 
 class RegisterRolePage extends StatelessWidget {
   const RegisterRolePage({super.key});
@@ -35,7 +36,7 @@ class RegisterRolePage extends StatelessWidget {
                       TextSpan(text: "Temu"),
                       TextSpan(
                         text: "Aksi",
-                        style: TextStyle(color: Color(0xFF4CC9FE)),
+                        style: TextStyle(color: AppColors.secondary),
                       ),
                     ],
                   ),
@@ -110,8 +111,15 @@ class RegisterRolePage extends StatelessWidget {
                       icon: Icons.business_rounded,
                       title: "PERUSAHAAN",
                       subtitle:
-                          "Berikan Sponsorship, CSR dan cari volunteer untuk kegiatanmu",
-                      onTap: () {},
+                          "Mulai buat event sosial dan cari relawan terbaik.",
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) =>
+                                  const RegisterPerusahaanPage()),
+                        );
+                      },
                     ),
                     const Spacer(),
                     GestureDetector(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../theme/app_colors.dart';
 
 class SecurityPage extends StatefulWidget {
   const SecurityPage({super.key});
@@ -57,11 +58,11 @@ class _SecurityPageState extends State<SecurityPage> {
 
       if (!mounted) return;
 
-      _showSnackBar("Kata sandi berhasil diperbarui", const Color(0xFF0D1B4E));
+      _showSnackBar("Kata sandi berhasil diperbarui", AppColors.primary);
 
       Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
-      _showSnackBar(_getFirebaseErrorMessage(e), Colors.red);
+      _showSnackBar(_getFirebaseErrorMessage(e), AppColors.error);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -72,7 +73,7 @@ class _SecurityPageState extends State<SecurityPage> {
       "Hapus Akun",
       "Apakah Anda yakin ingin menghapus akun secara permanen? Seluruh data Anda akan hilang.",
       "Hapus Akun",
-      Colors.red,
+      AppColors.error,
     );
 
     if (confirm && mounted) {
@@ -103,7 +104,7 @@ class _SecurityPageState extends State<SecurityPage> {
                 child: const Text("Batal")),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
               child: const Text("Hapus Permanen",
                   style: TextStyle(color: Colors.white)),
             ),
@@ -139,7 +140,7 @@ class _SecurityPageState extends State<SecurityPage> {
           Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
         } on FirebaseAuthException catch (e) {
           if (!mounted) return;
-          _showSnackBar(_getFirebaseErrorMessage(e), Colors.red);
+          _showSnackBar(_getFirebaseErrorMessage(e), AppColors.error);
         } finally {
           if (mounted) setState(() => _isLoading = false);
         }
@@ -181,7 +182,7 @@ class _SecurityPageState extends State<SecurityPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9F9F9),
+      backgroundColor: AppColors.neutral,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -233,7 +234,7 @@ class _SecurityPageState extends State<SecurityPage> {
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _changePassword,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0D1B4E),
+                    backgroundColor: AppColors.primary,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16)),
                     elevation: 0,
@@ -257,7 +258,7 @@ class _SecurityPageState extends State<SecurityPage> {
                   style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Colors.red)),
+                      color: AppColors.error)),
               const SizedBox(height: 8),
               const Text(
                   "Setelah Anda menghapus akun, akun tidak bisa dipulihkan. Jika Anda yakin ingin menghapus, klik tombol dibawah.",
@@ -269,13 +270,13 @@ class _SecurityPageState extends State<SecurityPage> {
                 child: OutlinedButton(
                   onPressed: _isLoading ? null : _deleteAccount,
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.red),
+                    side: const BorderSide(color: AppColors.error),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16)),
                   ),
                   child: const Text("Hapus Akun Saya",
                       style: TextStyle(
-                          color: Colors.red, fontWeight: FontWeight.bold)),
+                          color: AppColors.error, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],

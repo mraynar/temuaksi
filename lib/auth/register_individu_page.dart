@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../individu/beranda/home_page.dart';
-import 'package:firebase_auth/firebase_auth.dart'; 
+import 'package:firebase_auth/firebase_auth.dart';
 import '../components/main_navigation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../theme/app_colors.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -57,7 +58,7 @@ class _RegisterPageState extends State<RegisterPage> {
         'nomor_telepon': _phoneController.text.trim(),
         'role': 'individu',
         'photo_url': '',
-        'created_at': FieldValue.serverTimestamp(), 
+        'created_at': FieldValue.serverTimestamp(),
       });
 
       await userCredential.user?.updateDisplayName(_nameController.text.trim());
@@ -69,7 +70,7 @@ class _RegisterPageState extends State<RegisterPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Pendaftaran Berhasil! Selamat datang."),
-          backgroundColor: Color(0xFF0D1B4E),
+          backgroundColor: AppColors.primary,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -90,7 +91,7 @@ class _RegisterPageState extends State<RegisterPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -181,7 +182,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 children: [
                   Checkbox(
                     value: _agreeToTerms,
-                    activeColor: const Color(0xFF0D1B4E),
+                    activeColor: AppColors.primary,
                     onChanged: _isLoading
                         ? null
                         : (value) => setState(() => _agreeToTerms = value!),
@@ -196,7 +197,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           TextSpan(
                               text: "Syarat & Ketentuan",
                               style: TextStyle(
-                                  color: Color(0xFF0D1B4E),
+                                  color: AppColors.primary,
                                   fontWeight: FontWeight.bold)),
                           TextSpan(text: " yang berlaku."),
                         ],
@@ -234,8 +235,7 @@ class _RegisterPageState extends State<RegisterPage> {
       TextInputType? keyboardType}) {
     return Container(
       decoration: BoxDecoration(
-          color: const Color(0xFFF5F5F7),
-          borderRadius: BorderRadius.circular(12)),
+          color: AppColors.neutral, borderRadius: BorderRadius.circular(12)),
       child: TextField(
         controller: controller,
         obscureText: obscureText,
@@ -265,8 +265,8 @@ class _RegisterPageState extends State<RegisterPage> {
       child: ElevatedButton(
         onPressed: (_agreeToTerms && !_isLoading) ? _handleRegister : null,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF0D1B4E),
-          disabledBackgroundColor: const Color(0xFF0D1B4E).withAlpha(100),
+          backgroundColor: AppColors.primary,
+          disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.4),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
