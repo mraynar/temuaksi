@@ -19,6 +19,7 @@ Aplikasi ini dikembangkan menggunakan metode Agile dengan pendekatan Scrum agar 
 - Pengajuan Proposal Sponsorship
 - Kelola Proposal Event
 - Open Pendanaan
+- Open Volunteer
 - Pendaftaran Volunter
 - Generate MoU Digital
 - Dashboard Admin
