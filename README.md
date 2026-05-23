@@ -1,17 +1,50 @@
-# temu_aksi
+# TemuAksi
 
-A new Flutter project.
+## Identitas Kelompok
+Kelompok Gunung Semeru
 
-## Getting Started
+### Anggota Kelompok
+1. Alifia Ardita (24082010101)
+2. Immanuel Felix Yafianto (24082010107)
+3. M. Raynar Hammam (24082010128)
+4. Mirza Nabil K.A (24082010129)
 
-This project is a starting point for a Flutter application.
+## Deskripsi Aplikasi
+TemuAksi adalah aplikasi mobile yang dirancang sebagai platform penghubung antara penyelenggara acara, sponsor/perusahaan, dan volunter. Aplikasi ini membantu event organizer mendapatkan sponsor, membantu perusahaan menyalurkan dana sponsorship atau CSR secara tepat sasaran, serta mempermudah masyarakat menemukan kesempatan menjadi volunter secara lebih terstruktur dan transparan.
 
-A few resources to get you started if this is your first Flutter project:
+Aplikasi ini dikembangkan menggunakan metode Agile dengan pendekatan Scrum agar proses pengembangan lebih fleksibel, iteratif, dan sesuai dengan kebutuhan pengguna.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Fitur Utama
+- Login dan Register Multi Role
+- Pengajuan Proposal Sponsorship
+- Kelola Proposal Event
+- Open Pendanaan
+- Pendaftaran Volunter
+- Generate MoU Digital
+- Dashboard Admin
+- Riwayat Proposal dan Volunter
+- Cetak Sertifikat Volunter
+- Monitoring Pendanaan
+- Kelola Kegiatan Event
+- Kelola Akun Pengguna
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Tech Stack
+- Flutter
+- Dart
+- Firebase Authentication
+- Firebase Firestore / Realtime Database
+- Cloudinary
+- GitHub
+
+## Metode Pengembangan
+Aplikasi TemuAksi dikembangkan menggunakan metode Agile Software Development dengan pendekatan Scrum. Metode ini memungkinkan proses pengembangan dilakukan secara bertahap dan berulang sehingga aplikasi dapat terus disesuaikan dengan kebutuhan pengguna.
+
+## Cara Menjalankan Project
+
+```bash
+flutter pub get
+flutter run
+```
+
+## Repository
+https://github.com/mraynar/temuaksi
