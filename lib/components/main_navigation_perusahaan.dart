@@ -3,6 +3,7 @@ import 'package:temu_aksi/perusahaan/profile/profile_perusahaan_page.dart';
 import '../perusahaan/aksi/aksi_perusahaan_page.dart';
 import '../perusahaan/beranda/home_perusahaan.dart';
 import '../perusahaan/proposal/daftar_proposal_page.dart';
+import '../perusahaan/volunteer/kelola_volunteer_page.dart';
 import '../theme/app_colors.dart';
 
 class MainNavigationPerusahaan extends StatefulWidget {
@@ -20,7 +21,7 @@ class _MainNavigationPerusahaanState extends State<MainNavigationPerusahaan> {
     const CompanyHomePage(),
     const ManagementAksiPage(),
     const DaftarProposalPage(),
-    const Center(child: Text("Halaman Cari Volunteer")),
+    const KelolaVolunteerPage(),
     const CompanyProfilePage(),
   ];
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -13,6 +14,8 @@ class IndividuHomePage extends StatefulWidget {
 class _IndividuHomePageState extends State<IndividuHomePage> {
   final User? user = FirebaseAuth.instance.currentUser;
   String _photoUrl = '';
+  int _points = 0;
+  StreamSubscription<DocumentSnapshot>? _userSubscription;
 
   @override
   void initState() {
@@ -20,9 +23,15 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
     _loadUserPhoto();
   }
 
-  void _loadUserPhoto() async {
+  @override
+  void dispose() {
+    _userSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _loadUserPhoto() {
     if (user != null) {
-      FirebaseFirestore.instance
+      _userSubscription = FirebaseFirestore.instance
           .collection('users')
           .doc(user!.uid)
           .snapshots()
@@ -30,6 +39,7 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
         if (doc.exists && mounted) {
           setState(() {
             _photoUrl = doc.data()?['photo_url'] ?? '';
+            _points = doc.data()?['points'] ?? doc.data()?['poin'] ?? 0;
           });
         }
       });
@@ -81,22 +91,48 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                             ),
                           ],
                         ),
-                        GestureDetector(
-                          onTap: () {
-                            debugPrint("Pindah ke halaman Profile");
-                          },
-                          child: CircleAvatar(
-                            radius: 20,
-                            backgroundColor:
-                                AppColors.tertiary.withValues(alpha: 0.3),
-                            backgroundImage: _photoUrl.isNotEmpty
-                                ? NetworkImage(_photoUrl)
-                                : null,
-                            child: _photoUrl.isEmpty
-                                ? const Icon(Icons.person_outline,
-                                    color: Colors.white, size: 20)
-                                : null,
-                          ),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.stars_rounded, color: AppColors.secondary, size: 16),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    "$_points Poin",
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            GestureDetector(
+                              onTap: () {
+                                debugPrint("Pindah ke halaman Profile");
+                              },
+                              child: CircleAvatar(
+                                radius: 20,
+                                backgroundColor:
+                                    AppColors.tertiary.withValues(alpha: 0.3),
+                                backgroundImage: _photoUrl.isNotEmpty
+                                    ? NetworkImage(_photoUrl)
+                                    : null,
+                                child: _photoUrl.isEmpty
+                                    ? const Icon(Icons.person_outline,
+                                        color: Colors.white, size: 20)
+                                    : null,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

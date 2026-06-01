@@ -29,10 +29,14 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<!-- GIDClientID scheme dari REVERSED_CLIENT_ID di GoogleService-Info.plist -->
 				<string>com.googleusercontent.apps.564934186228-fbvnjgbi723st11b13ms39dfqf00dpo4</string>
 			</array>
 		</dict>
 	</array>
+	<key>GIDClientID</key>
+	<!-- GIDClientID dari CLIENT_ID di GoogleService-Info.plist -->
+	<string>564934186228-fbvnjgbi723st11b13ms39dfqf00dpo4.apps.googleusercontent.com</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>

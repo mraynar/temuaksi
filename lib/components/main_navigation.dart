@@ -3,6 +3,7 @@ import 'package:temu_aksi/individu/riwayat/riwayat_proposal_page.dart';
 import '../individu/beranda/home_page.dart';
 import '../individu/profile/profile_page.dart';
 import '../individu/explore/explore_page.dart';
+import '../individu/volunteer/volunteer_page.dart';
 import '../theme/app_colors.dart';
 
 class MainNavigation extends StatefulWidget {
@@ -19,8 +20,8 @@ class _MainNavigationState extends State<MainNavigation> {
     const IndividuHomePage(),
     const ExplorePage(),
     const RiwayatProposalPage(),
-    const Center(child: Text("Volunteer")),
-    const CompanyProfilePage(),
+    const VolunteerPage(),
+    const IndividuProfilePage(),
   ];
 
   void _onItemTapped(int index) {

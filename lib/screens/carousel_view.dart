@@ -137,23 +137,6 @@ class _LandingCarouselState extends State<LandingCarousel> {
               padding: const EdgeInsets.symmetric(horizontal: 35),
               child: Column(
                 children: [
-                  _socialBtn(
-                    imagePath: "assets/images/landing_page/Social Icons.png",
-                    label: "Lanjutkan dengan Google",
-                    labelColor: const Color(0xFF86868B),
-                    onTap: () {},
-                    iconSize: 24,
-                  ),
-                  const SizedBox(height: 14),
-                  _socialBtn(
-                    imagePath: "assets/images/landing_page/Group.png",
-                    label: "Lanjutkan sebagai Tamu",
-                    labelColor: const Color(0xFF86868B),
-                    iconColor: const Color(0xFF86868B),
-                    onTap: () {},
-                    iconSize: 32,
-                  ),
-                  const SizedBox(height: 32),
                   GestureDetector(
                     onTap: () => Navigator.push(
                         context,
@@ -177,63 +160,6 @@ class _LandingCarouselState extends State<LandingCarousel> {
                   ),
                   const SizedBox(height: 25),
                 ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _socialBtn({
-    required String imagePath,
-    required String label,
-    required VoidCallback onTap,
-    required double iconSize,
-    Color labelColor = const Color(0xFF1D1D1F),
-    Color? iconColor,
-  }) {
-    return Container(
-      width: double.infinity,
-      height: 56,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
-      child: OutlinedButton(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Color(0xFFE5E5E7), width: 1.5),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          backgroundColor: Colors.white,
-          padding: EdgeInsets.zero,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Image.asset(
-              imagePath,
-              width: iconSize,
-              height: iconSize,
-              fit: BoxFit.contain,
-              color: iconColor,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: TextStyle(
-                color: labelColor,
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-                letterSpacing: -0.3,
               ),
             ),
           ],

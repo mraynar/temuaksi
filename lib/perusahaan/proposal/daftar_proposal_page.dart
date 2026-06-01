@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../theme/app_colors.dart';
+import '../../utils/pdf_generator.dart';
 
 class DaftarProposalPage extends StatefulWidget {
   const DaftarProposalPage({super.key});
@@ -42,7 +43,8 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
     );
   }
 
-  void _showFundingModal(String docId, int danaDiminta) {
+  void _showFundingModal(String docId, Map<String, dynamic> proposalData) {
+    final int danaDiminta = proposalData['dana_diminta'] ?? 0;
     final TextEditingController fundingController = TextEditingController();
     showModalBottomSheet(
       context: context,
@@ -86,11 +88,21 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   if (fundingController.text.isNotEmpty) {
-                    _updateStatus(docId, 'selesai',
-                        danaDisetujui: int.parse(fundingController.text));
-                    Navigator.pop(context);
+                    final int danaDisetujui = int.parse(fundingController.text);
+                    await _updateStatus(docId, 'selesai', danaDisetujui: danaDisetujui);
+                    
+                    // Generate MoU PDF dynamically
+                    final Map<String, dynamic> dataForMoU = {
+                      ...proposalData,
+                      'dana_disetujui': danaDisetujui,
+                    };
+                    await PdfGenerator.generateMoU(dataForMoU);
+                    
+                    if (mounted) {
+                      Navigator.pop(context);
+                    }
                   }
                 },
                 style: ElevatedButton.styleFrom(
@@ -309,7 +321,7 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
       );
     } else if (status == 'ditinjau') {
       return ElevatedButton(
-        onPressed: () => _showFundingModal(docId, data['dana_diminta']),
+        onPressed: () => _showFundingModal(docId, data),
         style: ElevatedButton.styleFrom(
             backgroundColor: Colors.blue,
             elevation: 0,

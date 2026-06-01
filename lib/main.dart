@@ -5,11 +5,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'firebase_options.dart';
 import 'screens/landing_page.dart';
 import 'components/main_navigation.dart';
 import 'components/main_navigation_perusahaan.dart';
+import 'components/main_navigation_admin.dart';
+import 'auth/login_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +20,8 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  await initializeDateFormatting('id_ID', null);
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -55,7 +60,11 @@ class MyApp extends StatelessWidget {
         Locale('id', 'ID'),
         Locale('en', 'US'),
       ],
-      home: const AuthWrapper(),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const AuthWrapper(),
+        '/login': (context) => const LoginPage(),
+      },
     );
   }
 }
@@ -102,6 +111,8 @@ class AuthWrapper extends StatelessWidget {
 
             if (role == 'perusahaan') {
               return const MainNavigationPerusahaan();
+            } else if (role == 'admin') {
+              return const MainNavigationAdmin();
             }
 
             return const MainNavigation();

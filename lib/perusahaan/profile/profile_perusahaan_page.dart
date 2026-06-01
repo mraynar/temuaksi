@@ -3,9 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../../auth/login_page.dart';
 import '../../theme/app_colors.dart';
 import 'topup_saldo_page.dart';
+
+import '../../utils/logout_helper.dart';
 
 class CompanyProfilePage extends StatefulWidget {
   const CompanyProfilePage({super.key});
@@ -25,14 +26,7 @@ class _CompanyProfilePageState extends State<CompanyProfilePage> {
   );
 
   void _handleLogout() async {
-    await FirebaseAuth.instance.signOut();
-    if (mounted) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-        (route) => false,
-      );
-    }
+    await handleLogout(context);
   }
 
   @override

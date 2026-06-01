@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart' as gsi;
 import 'register_role_page.dart';
 import '../theme/app_colors.dart';
+import '../components/main_navigation.dart';
+import '../components/main_navigation_perusahaan.dart';
+import '../components/main_navigation_admin.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -43,15 +48,100 @@ class _LoginPageState extends State<LoginPage> {
 
       String message = "Terjadi kesalahan";
 
-      if (e.code == 'user-not-found') {
-        message = "Pengguna tidak ditemukan";
+      if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
+        message = "Email atau kata sandi salah";
       } else if (e.code == 'wrong-password') {
         message = "Kata sandi salah";
       } else if (e.code == 'invalid-email') {
         message = "Format email tidak valid";
+      } else {
+        message = e.message ?? "Terjadi kesalahan";
       }
 
       _showSnackBar(message);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showSnackBar("Terjadi kesalahan sistem: $e");
+    }
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _isLoading = true);
+    try {
+      final gsi.GoogleSignInAccount? googleUser = await gsi.GoogleSignIn.instance.authenticate();
+      if (googleUser == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final gsi.GoogleSignInAuthentication googleAuth = googleUser.authentication;
+      
+      // Get the accessToken using authorizationClient
+      final gsi.GoogleSignInClientAuthorization clientAuth = 
+          await googleUser.authorizationClient.authorizeScopes([]);
+
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: clientAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      final UserCredential userCredential =
+          await FirebaseAuth.instance.signInWithCredential(credential);
+
+      final User? user = userCredential.user;
+      String role = 'individu';
+      
+      if (user != null) {
+        final docRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+        final docSnap = await docRef.get();
+
+        if (!docSnap.exists) {
+          await docRef.set({
+            'uid': user.uid,
+            'name': user.displayName ?? "Pengguna Google",
+            'nama_lengkap': user.displayName ?? "Pengguna Google",
+            'email': user.email ?? '',
+            'nomor_telepon': user.phoneNumber ?? '',
+            'role': 'Individu',
+            'photo_url': user.photoURL ?? '',
+            'createdAt': FieldValue.serverTimestamp(),
+            'created_at': FieldValue.serverTimestamp(),
+          });
+          role = 'individu';
+        } else {
+          final data = docSnap.data();
+          role = (data?['role'] ?? 'individu').toString().toLowerCase();
+        }
+      }
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      if (role == 'perusahaan') {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const MainNavigationPerusahaan()),
+          (route) => false,
+        );
+      } else if (role == 'admin') {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const MainNavigationAdmin()),
+          (route) => false,
+        );
+      } else {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const MainNavigation()),
+          (route) => false,
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showSnackBar(e.message ?? "Gagal autentikasi Google");
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showSnackBar("Terjadi kesalahan sistem: $e");
     }
   }
 
@@ -283,24 +373,30 @@ class _LoginPageState extends State<LoginPage> {
         border: Border.all(color: const Color(0xFFE5E5E7), width: 1.5),
       ),
       child: OutlinedButton(
-        onPressed: null,
+        onPressed: _isLoading ? null : _handleGoogleSignIn,
         style: OutlinedButton.styleFrom(
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             side: BorderSide.none),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.asset("assets/images/landing_page/Social Icons.png",
-                width: 22, height: 22),
-            const SizedBox(width: 12),
-            const Text("Masuk dengan Google",
-                style: TextStyle(
-                    color: Color(0xFF86868B),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16)),
-          ],
-        ),
+        child: _isLoading
+            ? const SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(
+                    color: AppColors.primary, strokeWidth: 2))
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset("assets/images/landing_page/Social Icons.png",
+                      width: 22, height: 22),
+                  const SizedBox(width: 12),
+                  const Text("Masuk dengan Google",
+                      style: TextStyle(
+                          color: Color(0xFF86868B),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16)),
+                ],
+              ),
       ),
     );
   }

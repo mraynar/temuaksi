@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -96,12 +97,27 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
     setState(() => _isLoading = true);
 
     try {
+      final User? currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) throw Exception("User tidak terautentikasi");
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .get();
+
+      final String userName = userDoc.exists
+          ? (userDoc.data()?['nama_lengkap'] ?? userDoc.data()?['name'] ?? 'Relawan TemuAksi')
+          : 'Relawan TemuAksi';
+
       String? imageUrl = await _uploadToCloudinary(_imageFile!);
       if (imageUrl == null) throw Exception("Gagal mengunggah gambar dokumen");
 
       int danaMurni = int.parse(_danaController.text.replaceAll('.', ''));
 
       await FirebaseFirestore.instance.collection('proposals').add({
+        'user_id': currentUser.uid,
+        'user_name': userName,
+        'user_email': currentUser.email ?? '',
         'action_id': widget.actionDoc.id,
         'action_title': widget.actionDoc['title'],
         'nama_event': _namaEventController.text.trim(),

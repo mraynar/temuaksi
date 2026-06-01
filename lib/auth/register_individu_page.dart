@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import '../individu/beranda/home_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../components/main_navigation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_colors.dart';
 
@@ -75,11 +73,7 @@ class _RegisterPageState extends State<RegisterPage> {
         ),
       );
 
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const MainNavigation()),
-        (route) => false,
-      );
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -98,7 +92,13 @@ class _RegisterPageState extends State<RegisterPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      debugPrint("Error Firestore: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Terjadi kesalahan sistem: $e"),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 

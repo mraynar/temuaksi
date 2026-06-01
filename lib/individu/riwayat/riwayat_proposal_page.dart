@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
 import '../../../theme/app_colors.dart';
+import '../../utils/pdf_generator.dart';
 
 class RiwayatProposalPage extends StatefulWidget {
   const RiwayatProposalPage({super.key});
@@ -128,6 +130,40 @@ class _RiwayatProposalPageState extends State<RiwayatProposalPage> {
                   _buildDetailItem("Deskripsi", data['deskripsi']),
                   _buildDetailItem(
                       "Status", data['status']?.toString().toUpperCase()),
+                  if (data['status']?.toString().toLowerCase() == 'selesai') ...[
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () =>
+                                PdfGenerator.generateMoU(data),
+                            icon: const Icon(Icons.download_rounded, color: Colors.white, size: 18),
+                            label: Text("Unduh MoU", style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () =>
+                                PdfGenerator.generateCertificate(data['user_name'] ?? 'Volunteer', data['nama_event'] ?? 'Kegiatan'),
+                            icon: const Icon(Icons.card_membership, color: Colors.white, size: 18),
+                            label: Text("Sertifikat", style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blueAccent,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -180,7 +216,7 @@ class _RiwayatProposalPageState extends State<RiwayatProposalPage> {
       body: StreamBuilder<QuerySnapshot>(
         stream: _firestore
             .collection('proposals')
-            .orderBy('created_at', descending: true)
+            .where('user_id', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError)
@@ -190,12 +226,23 @@ class _RiwayatProposalPageState extends State<RiwayatProposalPage> {
                 child: CircularProgressIndicator(color: AppColors.primary));
           }
 
-          final docs = snapshot.data!.docs;
+          final docs = snapshot.data?.docs ?? [];
           if (docs.isEmpty) {
             return Center(
                 child: Text("Tidak ada data proposal",
                     style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
           }
+
+          // Sort in memory to avoid needing composite index in Firestore
+          final sortedDocs = List<DocumentSnapshot>.from(docs)
+            ..sort((a, b) {
+              final aTime = (a.data() as Map<String, dynamic>)['created_at'] as Timestamp?;
+              final bTime = (b.data() as Map<String, dynamic>)['created_at'] as Timestamp?;
+              if (aTime == null && bTime == null) return 0;
+              if (aTime == null) return 1;
+              if (bTime == null) return -1;
+              return bTime.compareTo(aTime);
+            });
 
           return SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -225,7 +272,7 @@ class _RiwayatProposalPageState extends State<RiwayatProposalPage> {
                     DataColumn(label: _headerText("DANA")),
                     DataColumn(label: _headerText("AKSI")),
                   ],
-                  rows: docs.map((doc) {
+                  rows: sortedDocs.map((doc) {
                     final data = doc.data() as Map<String, dynamic>;
                     return DataRow(
                       cells: [
@@ -269,9 +316,11 @@ class _RiwayatProposalPageState extends State<RiwayatProposalPage> {
                                   AppColors.primary,
                                   () => _showDetailModal(data)),
                               const SizedBox(width: 6),
-                              _tableActionButton(Icons.edit_square,
-                                  Colors.blueAccent, () => _showEditModal(doc)),
-                              const SizedBox(width: 6),
+                              if (data['status']?.toString().toLowerCase() == 'pending' || data['status'] == null)
+                                _tableActionButton(Icons.edit_square,
+                                    Colors.blueAccent, () => _showEditModal(doc)),
+                              if (data['status']?.toString().toLowerCase() == 'pending' || data['status'] == null)
+                                const SizedBox(width: 6),
                               _tableActionButton(
                                   Icons.delete_outline_rounded,
                                   Colors.redAccent,
