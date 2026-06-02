@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../theme/app_colors.dart';
 import '../../utils/pdf_generator.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class DaftarProposalPage extends StatefulWidget {
   const DaftarProposalPage({super.key});
@@ -14,7 +15,9 @@ class DaftarProposalPage extends StatefulWidget {
 
 class _DaftarProposalPageState extends State<DaftarProposalPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final User? _currentUser = FirebaseAuth.instance.currentUser;
   String _selectedFilter = 'all';
+  bool _isFundingLoading = false;
 
   Future<void> _updateStatus(String docId, String newStatus,
       {int? danaDisetujui}) async {
@@ -50,73 +53,132 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom + 30,
-            top: 25,
-            left: 25,
-            right: 25),
-        decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Konfirmasi Pendanaan",
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 20, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            Text(
-                "Dana diminta: Rp ${NumberFormat.decimalPattern('id_ID').format(danaDiminta)}",
-                style: TextStyle(color: Colors.grey[600])),
-            const SizedBox(height: 20),
-            TextField(
-              controller: fundingController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                hintText: "Masukkan nominal yang disetujui",
-                filled: true,
-                fillColor: const Color(0xFFF2F2F7),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(15),
-                    borderSide: BorderSide.none),
-              ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Container(
+            padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 30,
+                top: 25,
+                left: 25,
+                right: 25),
+            decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Konfirmasi Pendanaan",
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 20, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                Text(
+                    "Dana diminta: Rp ${NumberFormat.decimalPattern('id_ID').format(danaDiminta)}",
+                    style: TextStyle(color: Colors.grey[600])),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: fundingController,
+                  keyboardType: TextInputType.number,
+                  enabled: !_isFundingLoading,
+                  decoration: InputDecoration(
+                    hintText: "Masukkan nominal yang disetujui",
+                    filled: true,
+                    fillColor: const Color(0xFFF2F2F7),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide.none),
+                  ),
+                ),
+                const SizedBox(height: 25),
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: ElevatedButton(
+                    onPressed: _isFundingLoading
+                        ? null
+                        : () async {
+                            if (fundingController.text.isNotEmpty) {
+                              final int danaDisetujui = int.parse(fundingController.text);
+                              if (danaDisetujui <= 0) return;
+
+                              setModalState(() => _isFundingLoading = true);
+
+                              try {
+                                final userRef = _firestore.collection('users').doc(_currentUser!.uid);
+                                final proposalRef = _firestore.collection('proposals').doc(docId);
+                                final transactionRef = _firestore.collection('transactions').doc();
+
+                                await _firestore.runTransaction((transaction) async {
+                                  final userSnapshot = await transaction.get(userRef);
+                                  if (!userSnapshot.exists) {
+                                    throw Exception("User tidak ditemukan");
+                                  }
+                                  final userData = userSnapshot.data() as Map<String, dynamic>;
+                                  final int currentSaldo = userData['saldo_csr'] ?? 0;
+
+                                  if (currentSaldo < danaDisetujui) {
+                                    throw Exception("Saldo CSR tidak mencukupi");
+                                  }
+
+                                  transaction.update(userRef, {
+                                    'saldo_csr': FieldValue.increment(-danaDisetujui),
+                                  });
+
+                                  transaction.update(proposalRef, {
+                                    'status': 'selesai',
+                                    'dana_disetujui': danaDisetujui,
+                                  });
+
+                                  transaction.set(transactionRef, {
+                                    'company_id': _currentUser.uid,
+                                    'proposal_id': docId,
+                                    'amount': danaDisetujui,
+                                    'type': 'pendanaan',
+                                    'status': 'success',
+                                    'created_at': FieldValue.serverTimestamp(),
+                                  });
+                                });
+
+                                // Generate MoU PDF dynamically
+                                final Map<String, dynamic> dataForMoU = {
+                                  ...proposalData,
+                                  'dana_disetujui': danaDisetujui,
+                                };
+                                await PdfGenerator.generateMoU(dataForMoU);
+
+                                _showSnackBar("Pendanaan berhasil disetujui", AppColors.primary);
+
+                                if (mounted) {
+                                  Navigator.pop(context);
+                                }
+                              } catch (e) {
+                                final errorMsg = e.toString().replaceAll("Exception: ", "");
+                                _showSnackBar("Gagal memproses pendanaan: $errorMsg", Colors.redAccent);
+                              } finally {
+                                setModalState(() => _isFundingLoading = false);
+                              }
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15)),
+                        elevation: 0),
+                    child: _isFundingLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : const Text("Selesaikan Pendanaan",
+                            style: TextStyle(
+                                color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 25),
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: () async {
-                  if (fundingController.text.isNotEmpty) {
-                    final int danaDisetujui = int.parse(fundingController.text);
-                    await _updateStatus(docId, 'selesai', danaDisetujui: danaDisetujui);
-                    
-                    // Generate MoU PDF dynamically
-                    final Map<String, dynamic> dataForMoU = {
-                      ...proposalData,
-                      'dana_disetujui': danaDisetujui,
-                    };
-                    await PdfGenerator.generateMoU(dataForMoU);
-                    
-                    if (mounted) {
-                      Navigator.pop(context);
-                    }
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15)),
-                    elevation: 0),
-                child: const Text("Selesaikan Pendanaan",
-                    style: TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -143,16 +205,24 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
               stream: _selectedFilter == 'all'
                   ? _firestore
                       .collection('proposals')
-                      .orderBy('created_at', descending: true)
+                      .where('perusahaan_id', isEqualTo: _currentUser?.uid)
                       .snapshots()
                   : _firestore
                       .collection('proposals')
+                      .where('perusahaan_id', isEqualTo: _currentUser?.uid)
                       .where('status', isEqualTo: _selectedFilter)
                       .snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData)
                   return const Center(child: CircularProgressIndicator());
-                final docs = snapshot.data!.docs;
+                
+                final docs = List<DocumentSnapshot>.from(snapshot.data!.docs)
+                  ..sort((a, b) {
+                    final aT = (a.data() as Map)['created_at'] as Timestamp?;
+                    final bT = (b.data() as Map)['created_at'] as Timestamp?;
+                    if (aT == null || bT == null) return 0;
+                    return bT.compareTo(aT);
+                  });
 
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
@@ -184,9 +254,11 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
                               children: [
                                 _statusBadge(status),
                                 Text(
-                                  DateFormat('dd MMM yyyy').format(
-                                      (data['created_at'] as Timestamp)
-                                          .toDate()),
+                                  data['created_at'] != null
+                                      ? DateFormat('dd MMM yyyy').format(
+                                          (data['created_at'] as Timestamp)
+                                              .toDate())
+                                      : '-',
                                   style: GoogleFonts.plusJakartaSans(
                                       fontSize: 12, color: Colors.grey),
                                 ),

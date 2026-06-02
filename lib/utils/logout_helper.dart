@@ -1,48 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart' as real_gsi;
-
-class GoogleSignIn {
-  static final GoogleSignIn instance = GoogleSignIn();
-  
-  final _real = real_gsi.GoogleSignIn.instance;
-  
-  Future<bool> isSignedIn() async {
-    return true;
-  }
-  
-  Future<void> disconnect() async {
-    try {
-      await _real.disconnect();
-    } catch (_) {}
-  }
-  
-  Future<void> signOut() async {
-    try {
-      await _real.signOut();
-    } catch (_) {}
-  }
-}
+import 'package:google_sign_in/google_sign_in.dart' as gsi;
 
 Future<void> handleLogout(BuildContext context) async {
+  if (!context.mounted) return;
+
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const Center(child: CircularProgressIndicator()),
+  );
+
   try {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
-    try {
-      await GoogleSignIn().signOut();
-    } catch (e) {
-      debugPrint("Error Google SignOut: $e");
+    final user = FirebaseAuth.instance.currentUser;
+    final isGoogleUser = user?.providerData
+        .any((p) => p.providerId == 'google.com') ?? false;
+
+    if (isGoogleUser) {
+      await gsi.GoogleSignIn.instance.signOut();
     }
+
     await FirebaseAuth.instance.signOut();
+
+  } catch (e) {
+    debugPrint('Error logout: $e');
+    try { await FirebaseAuth.instance.signOut(); } catch (_) {}
+  } finally {
     if (context.mounted) {
       Navigator.of(context).pop();
       Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
     }
-  } catch (e) {
-    if (context.mounted) Navigator.of(context).pop();
-    debugPrint("Error logout: $e");
   }
 }

@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
@@ -46,38 +47,60 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
   final TextEditingController _danaController = TextEditingController();
 
   DateTime? _selectedDate;
-  File? _imageFile;
+  File? _proposalFile;
+  String? _proposalFileName;
   bool _isLoading = false;
 
   final String cloudName = "dm4ua5rj6";
   final String uploadPreset = "temu_aksi_preset";
 
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile =
-        await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
-
-    if (pickedFile != null) {
+  Future<void> _pickFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['zip', 'pdf', 'doc', 'docx'],
+    );
+    if (result != null && result.files.single.path != null) {
       setState(() {
-        _imageFile = File(pickedFile.path);
+        _proposalFile = File(result.files.single.path!);
+        _proposalFileName = result.files.single.name;
       });
     }
   }
 
   Future<String?> _uploadToCloudinary(File file) async {
     final url =
-        Uri.parse("https://api.cloudinary.com/v1_1/$cloudName/image/upload");
+        Uri.parse("https://api.cloudinary.com/v1_1/$cloudName/raw/upload");
     var request = http.MultipartRequest("POST", url);
     request.fields['upload_preset'] = uploadPreset;
-    request.files.add(await http.MultipartFile.fromPath('file', file.path));
+
+    final filename = file.path.split('/').last;
+    final ext = filename.split('.').last.toLowerCase();
+    MediaType contentType;
+
+    if (ext == 'zip') {
+      contentType = MediaType('application', 'zip');
+    } else if (ext == 'pdf') {
+      contentType = MediaType('application', 'pdf');
+    } else if (ext == 'doc') {
+      contentType = MediaType('application', 'msword');
+    } else if (ext == 'docx') {
+      contentType = MediaType('application',
+          'vnd.openxmlformats-officedocument.wordprocessingml.document');
+    } else {
+      contentType = MediaType('application', 'octet-stream');
+    }
+
+    request.files.add(await http.MultipartFile.fromPath(
+      'file', file.path, filename: filename, contentType: contentType,
+    ));
 
     try {
-      var response = await request.send();
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
       if (response.statusCode == 200) {
-        var responseData = await response.stream.toBytes();
-        var responseString = String.fromCharCodes(responseData);
-        var jsonRes = jsonDecode(responseString);
-        return jsonRes['secure_url'];
+        return jsonDecode(response.body)['secure_url'];
+      } else {
+        debugPrint("Cloudinary Error: ${response.statusCode} ${response.body}");
       }
     } catch (e) {
       debugPrint("Cloudinary Error: $e");
@@ -87,10 +110,10 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
 
   Future<void> _submitProposal() async {
     if (!_formKey.currentState!.validate() ||
-        _imageFile == null ||
+        _proposalFile == null ||
         _selectedDate == null) {
       _showSnackBar(
-          "Mohon lengkapi data, tanggal, dan foto dokumen", Colors.red);
+          "Mohon lengkapi data, tanggal, dan file proposal", Colors.red);
       return;
     }
 
@@ -109,8 +132,11 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
           ? (userDoc.data()?['nama_lengkap'] ?? userDoc.data()?['name'] ?? 'Relawan TemuAksi')
           : 'Relawan TemuAksi';
 
-      String? imageUrl = await _uploadToCloudinary(_imageFile!);
-      if (imageUrl == null) throw Exception("Gagal mengunggah gambar dokumen");
+      final actionData = widget.actionDoc.data() as Map<String, dynamic>;
+      final String perusahaanId = actionData['company_id'] ?? '';
+
+      String? imageUrl = await _uploadToCloudinary(_proposalFile!);
+      if (imageUrl == null) throw Exception("Gagal mengunggah file proposal");
 
       int danaMurni = int.parse(_danaController.text.replaceAll('.', ''));
 
@@ -119,7 +145,8 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
         'user_name': userName,
         'user_email': currentUser.email ?? '',
         'action_id': widget.actionDoc.id,
-        'action_title': widget.actionDoc['title'],
+        'perusahaan_id': perusahaanId,
+        'action_title': widget.actionDoc['title'] ?? widget.actionDoc['judul'] ?? 'Tanpa Judul',
         'nama_event': _namaEventController.text.trim(),
         'deskripsi': _deskripsiController.text.trim(),
         'lokasi': _lokasiController.text.trim(),
@@ -130,6 +157,15 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
         'status': 'pending',
         'created_at': FieldValue.serverTimestamp(),
       });
+
+      try {
+        await FirebaseFirestore.instance
+            .collection('actions')
+            .doc(widget.actionDoc.id)
+            .update({'proposal_count': FieldValue.increment(1)});
+      } catch (e) {
+        debugPrint("Gagal update proposal_count: $e");
+      }
 
       if (mounted) {
         _showSnackBar("Proposal berhasil dikirim!", AppColors.primary);
@@ -205,7 +241,7 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
                       keyboardType: TextInputType.number,
                       isRupiah: true),
                   const SizedBox(height: 32),
-                  _buildImagePickerArea(),
+                  _buildFilePickerArea(),
                   const SizedBox(height: 120),
                 ],
               ),
@@ -305,41 +341,64 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
     );
   }
 
-  Widget _buildImagePickerArea() {
-    bool hasImage = _imageFile != null;
+  Widget _buildFilePickerArea() {
+    bool hasFile = _proposalFile != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Upload Bukti Dokumen (Gambar)",
+        Text("Upload Proposal",
             style: GoogleFonts.plusJakartaSans(
                 fontSize: 15, fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
         GestureDetector(
-          onTap: _pickImage,
+          onTap: _pickFile,
           child: Container(
             width: double.infinity,
-            height: 200,
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                    color: hasImage
-                        ? AppColors.primary
-                        : const Color(0xFFE5E5EA))),
-            child: hasImage
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(13),
-                    child: Image.file(_imageFile!, fit: BoxFit.cover),
-                  )
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: hasFile ? AppColors.primary : const Color(0xFFE5E5EA),
+              ),
+            ),
+            child: hasFile
+                ? Row(children: [
+                    const Icon(Icons.insert_drive_file_rounded,
+                        color: AppColors.primary, size: 36),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_proposalFileName ?? 'File selected',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black)),
+                          const SizedBox(height: 4),
+                          Text("Tap to change file",
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12, color: Colors.grey)),
+                        ],
+                      ),
+                    ),
+                  ])
                 : Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.camera_alt_outlined,
+                      const Icon(Icons.upload_file_rounded,
                           color: Colors.grey, size: 40),
                       const SizedBox(height: 8),
-                      Text("Klik untuk memilih gambar",
-                          style:
-                              GoogleFonts.plusJakartaSans(color: Colors.grey)),
+                      Text("Tap to select file",
+                          style: GoogleFonts.plusJakartaSans(
+                              color: Colors.grey, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 4),
+                      Text("Supported formats: ZIP, PDF, DOC, DOCX",
+                          style: GoogleFonts.plusJakartaSans(
+                              color: Colors.grey, fontSize: 12)),
                     ],
                   ),
           ),

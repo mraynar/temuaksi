@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../theme/app_colors.dart';
 import 'detail_volunteer_page.dart';
 
@@ -44,7 +45,7 @@ class _VolunteerPageState extends State<VolunteerPage> {
         ),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: _firestore.collection('actions').snapshots(),
+        stream: _firestore.collection('volunteer_events').where('status', isEqualTo: 'Aktif').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -117,13 +118,39 @@ class _VolunteerActionCard extends StatefulWidget {
 }
 
 class _VolunteerActionCardState extends State<_VolunteerActionCard> {
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'teknologi':
+        return Icons.memory_rounded;
+      case 'lingkungan':
+        return Icons.eco_rounded;
+      case 'kesehatan':
+        return Icons.health_and_safety_rounded;
+      case 'olahraga':
+        return Icons.fitness_center_rounded;
+      case 'sosial':
+      case 'sosial & kemanusiaan':
+        return Icons.volunteer_activism_rounded;
+      default:
+        return Icons.stars_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = widget.actionDoc.data() as Map<String, dynamic>;
-    final String title = data['title'] ?? 'Tanpa Judul';
-    final String category = data['category'] ?? 'Sosial';
-    final String description = data['description'] ?? 'Tidak ada deskripsi.';
-    final String scale = data['scale'] ?? 'Lokal';
+    final String title = data['judul'] ?? data['title'] ?? 'Tanpa Judul';
+    final String category = data['kategori'] ?? data['category'] ?? 'Sosial';
+    final String description = data['deskripsi'] ?? data['description'] ?? '';
+    final String scale = data['lokasi'] ?? data['scale'] ?? '-';
+    final String photoUrl = data['photo_url'] ?? '';
+    final int kuota = data['kuota'] ?? 0;
+    final int pesertaCount = data['peserta_count'] ?? 0;
+    final String jamMulai = data['jam_mulai'] ?? '-';
+    final DateTime? startDate = (data['start_date'] as Timestamp?)?.toDate();
+    final String formattedDate = startDate != null
+        ? DateFormat('dd MMM yyyy').format(startDate)
+        : '-';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -141,6 +168,38 @@ class _VolunteerActionCardState extends State<_VolunteerActionCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            child: photoUrl.isNotEmpty
+                ? Image.network(
+                    photoUrl,
+                    height: 160,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      height: 160,
+                      color: AppColors.primary.withOpacity(0.1),
+                      child: Center(
+                        child: Icon(
+                          _getCategoryIcon(category),
+                          size: 50,
+                          color: AppColors.primary.withOpacity(0.3),
+                        ),
+                      ),
+                    ),
+                  )
+                : Container(
+                    height: 160,
+                    color: AppColors.primary.withOpacity(0.1),
+                    child: Center(
+                      child: Icon(
+                        _getCategoryIcon(category),
+                        size: 50,
+                        color: AppColors.primary.withOpacity(0.3),
+                      ),
+                    ),
+                  ),
+          ),
           Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -201,6 +260,36 @@ class _VolunteerActionCardState extends State<_VolunteerActionCard> {
                     height: 1.5,
                   ),
                 ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(Icons.people_alt_rounded, size: 16, color: Color(0xFF86868B)),
+                    const SizedBox(width: 8),
+                    Text(
+                      "Kuota: $pesertaCount / $kuota Terisi",
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        color: const Color(0xFF3A3A3C),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF86868B)),
+                    const SizedBox(width: 8),
+                    Text(
+                      "$formattedDate, pukul $jamMulai",
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        color: const Color(0xFF3A3A3C),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -211,12 +300,10 @@ class _VolunteerActionCardState extends State<_VolunteerActionCard> {
               stream: FirebaseFirestore.instance
                   .collection('user_volunteers')
                   .where('uid', isEqualTo: widget.userId)
+                  .where('volunteer_event_id', isEqualTo: widget.actionDoc.id)
                   .snapshots(),
               builder: (context, snapshot) {
-                final userVolDoc = snapshot.data?.docs.firstWhere(
-                  (doc) => (doc.data() as Map<String, dynamic>)['event_id'] == widget.actionDoc.id,
-                  orElse: () => null as dynamic,
-                );
+                final userVolDoc = snapshot.data?.docs.isNotEmpty == true ? snapshot.data!.docs.first : null;
 
                 final bool isRegistered = userVolDoc != null;
                 final String status = isRegistered ? (userVolDoc.data() as Map<String, dynamic>)['status'] ?? 'sedang berjalan' : '';

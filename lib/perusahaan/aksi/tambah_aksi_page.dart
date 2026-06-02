@@ -1,9 +1,13 @@
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
 import '../../theme/app_colors.dart';
 
 class CurrencyInputFormatter extends TextInputFormatter {
@@ -43,12 +47,16 @@ class _TambahAksiPageState extends State<TambahAksiPage> {
   DateTime? _endDate;
 
   bool _isLoading = false;
+  File? _selectedImage;
+
+  final String cloudName = "dm4ua5rj6";
+  final String uploadPreset = "temu_aksi_preset";
 
   final _titleController = TextEditingController();
   final _minSponsorController = TextEditingController();
   final _maxSponsorController = TextEditingController();
   final _criteriaController = TextEditingController();
-  final _benefitController = TextEditingController();
+  final _syaratController = TextEditingController();
   final _descController = TextEditingController();
   final _responTimeController = TextEditingController(text: "2 - 3 Hari Kerja");
   final _pesertaController = TextEditingController();
@@ -73,6 +81,34 @@ class _TambahAksiPageState extends State<TambahAksiPage> {
     return int.tryParse(text.replaceAll('.', '')) ?? 0;
   }
 
+  Future<void> _pickImage() async {
+    final picked = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, imageQuality: 75);
+    if (picked != null) {
+      setState(() => _selectedImage = File(picked.path));
+    }
+  }
+
+  Future<String?> _uploadImage(File file) async {
+    final url = Uri.parse(
+        "https://api.cloudinary.com/v1_1/$cloudName/image/upload");
+    var request = http.MultipartRequest("POST", url);
+    request.fields['upload_preset'] = uploadPreset;
+    request.files.add(await http.MultipartFile.fromPath('file', file.path));
+    try {
+      var response = await request.send();
+      if (response.statusCode == 200) {
+        var responseData = await response.stream.toBytes();
+        var responseString = String.fromCharCodes(responseData);
+        var jsonRes = jsonDecode(responseString);
+        return jsonRes['secure_url'];
+      }
+    } catch (e) {
+      debugPrint("Cloudinary Error: $e");
+    }
+    return null;
+  }
+
   Future<void> _submitAksi() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -84,6 +120,12 @@ class _TambahAksiPageState extends State<TambahAksiPage> {
     setState(() => _isLoading = true);
 
     try {
+      String photoUrl = '';
+      if (_selectedImage != null) {
+        String? uploaded = await _uploadImage(_selectedImage!);
+        if (uploaded != null) photoUrl = uploaded;
+      }
+
       await FirebaseFirestore.instance.collection('actions').add({
         'company_id': user?.uid,
         'title': _titleController.text.trim(),
@@ -94,10 +136,11 @@ class _TambahAksiPageState extends State<TambahAksiPage> {
         'start_date': _startDate,
         'end_date': _endDate,
         'criteria': _criteriaController.text.trim(),
-        'benefits': _benefitController.text.trim(),
+        'syarat_ketentuan': _syaratController.text.trim(),
         'description': _descController.text.trim(),
         'target_peserta': _pesertaController.text.trim(),
         'respon_time': _responTimeController.text.trim(),
+        'photo_url': photoUrl,
         'status': 'Aktif',
         'proposal_count': 0,
         'created_at': FieldValue.serverTimestamp(),
@@ -216,6 +259,12 @@ class _TambahAksiPageState extends State<TambahAksiPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // ── Foto Aksi ──────────────────────────────────────
+                      _buildSectionHeader("Foto Aksi"),
+                      const SizedBox(height: 12),
+                      _buildPhotoPicker(),
+                      const SizedBox(height: 24),
+                      // ── Informasi Utama ────────────────────────────────
                       _buildSectionHeader("Informasi Utama"),
                       const SizedBox(height: 12),
                       _buildCard([
@@ -332,7 +381,7 @@ class _TambahAksiPageState extends State<TambahAksiPage> {
                         ),
                       ]),
                       const SizedBox(height: 24),
-                      _buildSectionHeader("Kriteria & Benefit"),
+                      _buildSectionHeader("Kriteria & Syarat"),
                       const SizedBox(height: 12),
                       _buildCard([
                         _buildLabel("Target Jumlah Peserta"),
@@ -345,21 +394,21 @@ class _TambahAksiPageState extends State<TambahAksiPage> {
                         _buildTextField(
                           _criteriaController,
                           "• Teknologi\n• Startup",
-                          maxLines: 3,
+                          isMultiline: true,
                         ),
                         const SizedBox(height: 16),
-                        _buildLabel("Benefit untuk Perusahaan"),
+                        _buildLabel("Syarat & Ketentuan"),
                         _buildTextField(
-                          _benefitController,
-                          "• Logo di banner\n• Exposure media sosial",
-                          maxLines: 3,
+                          _syaratController,
+                          "• Peserta minimal usia 17 tahun\n• Bersedia hadir tepat waktu",
+                          isMultiline: true,
                         ),
                         const SizedBox(height: 16),
                         _buildLabel("Deskripsi Lengkap"),
                         _buildTextField(
                           _descController,
                           "Jelaskan detail kolaborasi...",
-                          maxLines: 4,
+                          isMultiline: true,
                         ),
                       ]),
                       const SizedBox(height: 32),
@@ -368,6 +417,74 @@ class _TambahAksiPageState extends State<TambahAksiPage> {
                     ],
                   ),
                 ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoPicker() {
+    return GestureDetector(
+      onTap: _pickImage,
+      child: Container(
+        height: 180,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _selectedImage == null
+                ? AppColors.primary.withValues(alpha: 0.3)
+                : Colors.transparent,
+            width: 1.5,
+            // Dashed border via custom painter would require more code;
+            // using a solid thin border that reads as "pick zone"
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: _selectedImage == null
+            ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.add_photo_alternate_outlined,
+                      size: 40, color: AppColors.primary.withValues(alpha: 0.6)),
+                  const SizedBox(height: 10),
+                  Text(
+                    "Tambah Foto Aksi",
+                    style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary.withValues(alpha: 0.7),
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Ketuk untuk memilih gambar",
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11, color: Colors.grey),
+                  ),
+                ],
+              )
+            : Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.file(_selectedImage!, fit: BoxFit.cover),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: _pickImage,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.edit_rounded,
+                            color: Colors.white, size: 18),
+                      ),
+                    ),
+                  ),
+                ],
               ),
       ),
     );
@@ -393,7 +510,7 @@ class _TambahAksiPageState extends State<TambahAksiPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -426,6 +543,7 @@ class _TambahAksiPageState extends State<TambahAksiPage> {
     bool isNumber = false,
     bool isCurrency = false,
     int maxLines = 1,
+    bool isMultiline = false,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -434,8 +552,15 @@ class _TambahAksiPageState extends State<TambahAksiPage> {
       ),
       child: TextFormField(
         controller: controller,
-        maxLines: maxLines,
-        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+        maxLines: isMultiline ? null : maxLines,
+        minLines: isMultiline ? 3 : null,
+        keyboardType: isMultiline
+            ? TextInputType.multiline
+            : isNumber
+                ? TextInputType.number
+                : TextInputType.text,
+        textInputAction:
+            isMultiline ? TextInputAction.newline : TextInputAction.next,
         inputFormatters: isCurrency
             ? [
                 FilteringTextInputFormatter.digitsOnly,

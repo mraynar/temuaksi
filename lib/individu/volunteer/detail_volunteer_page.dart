@@ -26,27 +26,50 @@ class _DetailVolunteerPageState extends State<DetailVolunteerPage> {
   final String cloudName = "dm4ua5rj6";
   final String uploadPreset = "temu_aksi_preset";
 
-  // Async function to register user to user_volunteers collection
   Future<void> _daftarVolunteer(String eventId) async {
     if (_currentUser == null) return;
     setState(() => _isActionLoading = true);
 
     try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUser.uid)
+          .get();
+      final userData = userDoc.data() ?? {};
+
       final data = widget.actionDoc.data() as Map<String, dynamic>;
-      final String title = data['title'] ?? 'Tanpa Judul';
-      final String category = data['category'] ?? 'Sosial';
-      final String description = data['description'] ?? '';
+      final String title = data['judul'] ?? data['title'] ?? 'Tanpa Judul';
+      final String category = data['kategori'] ?? data['category'] ?? 'Sosial';
+      final String description = data['deskripsi'] ?? data['description'] ?? '';
       final int pointReward = data['points'] ?? data['poin'] ?? 50;
 
       await FirebaseFirestore.instance.collection('user_volunteers').add({
         'uid': _currentUser.uid,
         'event_id': eventId,
+        'volunteer_event_id': eventId,
         'title': title,
         'category': category,
         'description': description,
         'status': 'sedang berjalan',
         'points': pointReward,
         'registered_at': FieldValue.serverTimestamp(),
+      });
+
+      await FirebaseFirestore.instance
+          .collection('volunteer_events')
+          .doc(eventId)
+          .update({'peserta_count': FieldValue.increment(1)});
+
+      await FirebaseFirestore.instance
+          .collection('volunteer_events')
+          .doc(eventId)
+          .collection('registrants')
+          .add({
+        'uid': _currentUser.uid,
+        'nama_lengkap': userData['nama_lengkap'] ?? '',
+        'email': _currentUser.email ?? '',
+        'registered_at': FieldValue.serverTimestamp(),
+        'status': 'aktif',
       });
 
       if (mounted) {
@@ -362,12 +385,13 @@ class _DetailVolunteerPageState extends State<DetailVolunteerPage> {
   @override
   Widget build(BuildContext context) {
     final data = widget.actionDoc.data() as Map<String, dynamic>;
-    final String title = data['title'] ?? 'Tanpa Judul';
-    final String category = data['category'] ?? 'Sosial';
-    final String description = data['description'] ?? 'Tidak ada deskripsi.';
-    final String scale = data['scale'] ?? 'Lokal';
+    final String title = data['judul'] ?? data['title'] ?? 'Tanpa Judul';
+    final String category = data['kategori'] ?? data['category'] ?? 'Sosial';
+    final String description = data['deskripsi'] ?? data['description'] ?? 'Tidak ada deskripsi.';
+    final String scale = data['lokasi'] ?? data['scale'] ?? 'Lokal';
     final int pointReward = data['points'] ?? data['poin'] ?? 50;
     final int kuota = data['kuota'] ?? 100;
+    final String photoUrl = data['photo_url'] ?? '';
     final DateTime? start = (data['start_date'] as Timestamp?)?.toDate();
     final DateTime? end = (data['end_date'] as Timestamp?)?.toDate();
     final String timeline = start != null
@@ -398,7 +422,7 @@ class _DetailVolunteerPageState extends State<DetailVolunteerPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Banner Event Image Placeholder
+                        // Banner Event Image
                         Container(
                           height: 180,
                           width: double.infinity,
@@ -413,13 +437,26 @@ class _DetailVolunteerPageState extends State<DetailVolunteerPage> {
                               ),
                             ],
                           ),
-                          child: Center(
-                            child: Icon(
-                              Icons.volunteer_activism_outlined,
-                              size: 72,
-                              color: AppColors.primary.withValues(alpha: 0.2),
-                            ),
-                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: photoUrl.isNotEmpty
+                              ? Image.network(
+                                  photoUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Center(
+                                    child: Icon(
+                                      Icons.volunteer_activism_outlined,
+                                      size: 72,
+                                      color: AppColors.primary.withOpacity(0.2),
+                                    ),
+                                  ),
+                                )
+                              : Center(
+                                  child: Icon(
+                                    Icons.volunteer_activism_outlined,
+                                    size: 72,
+                                    color: AppColors.primary.withOpacity(0.2),
+                                  ),
+                                ),
                         ),
                         const SizedBox(height: 24),
 
@@ -620,10 +657,22 @@ class _DetailVolunteerPageState extends State<DetailVolunteerPage> {
                           .where('uid', isEqualTo: _currentUser.uid)
                           .snapshots(),
                       builder: (context, snapshot) {
-                        final userVolDoc = snapshot.data?.docs.firstWhere(
-                          (doc) => (doc.data() as Map<String, dynamic>)['event_id'] == widget.actionDoc.id,
-                          orElse: () => null as dynamic,
-                        );
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const SizedBox(
+                            height: 52,
+                            child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                          );
+                        }
+
+                        QueryDocumentSnapshot? userVolDoc;
+                        if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+                          final matches = snapshot.data!.docs.where((doc) {
+                            final map = doc.data() as Map<String, dynamic>;
+                            return map['volunteer_event_id'] == widget.actionDoc.id ||
+                                map['event_id'] == widget.actionDoc.id;
+                          });
+                          userVolDoc = matches.isNotEmpty ? matches.first : null;
+                        }
 
                         final bool isRegistered = userVolDoc != null;
                         final String status = isRegistered ? (userVolDoc.data() as Map<String, dynamic>)['status'] ?? 'sedang berjalan' : '';
@@ -663,7 +712,7 @@ class _DetailVolunteerPageState extends State<DetailVolunteerPage> {
                               width: double.infinity,
                               height: 52,
                               child: ElevatedButton.icon(
-                                onPressed: () => _showUploadProgressModal(userVolDoc.id, pointReward),
+                                onPressed: () => _showUploadProgressModal(userVolDoc!.id, pointReward),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.primary,
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),

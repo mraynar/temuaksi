@@ -18,83 +18,127 @@ class DashboardAdminPage extends StatelessWidget {
         builder: (context, usersSnapshot) {
           return StreamBuilder<QuerySnapshot>(
             stream: firestore.collection('proposals').snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError || usersSnapshot.hasError) {
-                return const Center(child: Text("Terjadi kesalahan"));
-              }
-              if (snapshot.connectionState == ConnectionState.waiting ||
-                  usersSnapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator(color: AppColors.primary));
-              }
+            builder: (context, proposalsSnapshot) {
+              return StreamBuilder<QuerySnapshot>(
+                stream: firestore.collection('actions').snapshots(),
+                builder: (context, actionsSnapshot) {
+                  return StreamBuilder<QuerySnapshot>(
+                    stream: firestore.collection('volunteer_events').snapshots(),
+                    builder: (context, volunteerEventsSnapshot) {
+                      if (usersSnapshot.hasError ||
+                          proposalsSnapshot.hasError ||
+                          actionsSnapshot.hasError ||
+                          volunteerEventsSnapshot.hasError) {
+                        return const Center(child: Text("Terjadi kesalahan"));
+                      }
+                      if (usersSnapshot.connectionState == ConnectionState.waiting ||
+                          proposalsSnapshot.connectionState == ConnectionState.waiting ||
+                          actionsSnapshot.connectionState == ConnectionState.waiting ||
+                          volunteerEventsSnapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(color: AppColors.primary),
+                        );
+                      }
 
-              final docs = snapshot.data?.docs ?? [];
-              final userDocs = usersSnapshot.data?.docs ?? [];
-              
-              int totalKegiatan = docs.length;
-              int totalSelesai = 0;
-              int totalDanaCSR = 0;
-              int totalUsers = userDocs.length;
+                      final userDocs = usersSnapshot.data?.docs ?? [];
+                      final proposalsDocs = proposalsSnapshot.data?.docs ?? [];
+                      final actionsDocs = actionsSnapshot.data?.docs ?? [];
+                      final volunteerEventsDocs = volunteerEventsSnapshot.data?.docs ?? [];
 
-              for (var doc in docs) {
-                final data = doc.data() as Map<String, dynamic>;
-                final status = data['status']?.toString().toLowerCase();
-                if (status == 'selesai') {
-                  totalSelesai++;
-                  totalDanaCSR += (data['dana_diminta'] ?? 0) as int;
-                }
-              }
+                      int totalDanaCSR = 0;
+                      for (var doc in proposalsDocs) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final status = data['status']?.toString().toLowerCase();
+                        if (status == 'selesai') {
+                          totalDanaCSR += (data['dana_disetujui'] ?? data['dana_diminta'] ?? 0) as int;
+                        }
+                      }
 
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Ringkasan Analitik",
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF1D1D1F),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    _buildStatCard(
-                      title: "Total Dana CSR Terpikat",
-                      value: "Rp ${NumberFormat.compact(locale: 'id_ID').format(totalDanaCSR)}",
-                      icon: Icons.monetization_on_rounded,
-                      color: Colors.green,
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildStatCard(
-                            title: "Total Kegiatan Sosial",
-                            value: totalKegiatan.toString(),
-                            icon: Icons.event_note_rounded,
-                            color: Colors.blueAccent,
-                          ),
+                      int totalActions = actionsDocs.length;
+                      int totalVolunteerEvents = volunteerEventsDocs.length;
+
+                      int totalPerusahaan = 0;
+                      int totalIndividu = 0;
+                      for (var doc in userDocs) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final role = (data['role'] ?? '').toString().toLowerCase();
+                        if (role == 'perusahaan') {
+                          totalPerusahaan++;
+                        } else if (role == 'individu') {
+                          totalIndividu++;
+                        }
+                      }
+
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Ringkasan Analitik",
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF1D1D1F),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            _buildStatCard(
+                              title: "Total Dana CSR Terpikat",
+                              value: "Rp ${NumberFormat.compact(locale: 'id_ID').format(totalDanaCSR)}",
+                              icon: Icons.monetization_on_rounded,
+                              color: Colors.green,
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildStatCard(
+                                    title: "Total Aksi CSR",
+                                    value: totalActions.toString(),
+                                    icon: Icons.assignment_rounded,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _buildStatCard(
+                                    title: "Kegiatan Volunteer",
+                                    value: totalVolunteerEvents.toString(),
+                                    icon: Icons.volunteer_activism_rounded,
+                                    color: Colors.orange,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildStatCard(
+                                    title: "Total Perusahaan",
+                                    value: totalPerusahaan.toString(),
+                                    icon: Icons.business_rounded,
+                                    color: Colors.purple,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _buildStatCard(
+                                    title: "Total Individu",
+                                    value: totalIndividu.toString(),
+                                    icon: Icons.person_rounded,
+                                    color: Colors.teal,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildStatCard(
-                            title: "Proposal Selesai",
-                            value: totalSelesai.toString(),
-                            icon: Icons.check_circle_rounded,
-                            color: AppColors.tertiary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _buildStatCard(
-                      title: "Total Pengguna Aktif",
-                      value: totalUsers.toString(),
-                      icon: Icons.people_alt_rounded,
-                      color: AppColors.primary,
-                    ),
-                  ],
-                ),
+                      );
+                    },
+                  );
+                },
               );
             },
           );

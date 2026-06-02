@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../theme/app_colors.dart';
 import 'tambah_aksi_page.dart';
+import 'edit_aksi_page.dart';
 
 class ManagementAksiPage extends StatefulWidget {
   const ManagementAksiPage({super.key});
@@ -236,12 +237,81 @@ class _ManagementAksiPageState extends State<ManagementAksiPage> {
             delegate: SliverChildBuilderDelegate(
               (context, index) {
                 final data = docs[index].data() as Map<String, dynamic>;
-                return _buildActionItem(
-                  data['title'] ?? 'Tanpa Judul',
-                  data['category'] ?? 'Umum',
-                  "${data['proposal_count'] ?? 0} Proposal Masuk",
-                  _getCategoryColor(data['category']),
-                  _getCategoryIcon(data['category']),
+                return Dismissible(
+                  key: Key(docs[index].id),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: const Icon(Icons.delete_outline_rounded,
+                        color: Colors.white, size: 28),
+                  ),
+                  confirmDismiss: (direction) async {
+                    return await showDialog<bool>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: const Text('Hapus Aksi?'),
+                        content: const Text(
+                            'Aksi ini akan dihapus permanen dan tidak dapat dikembalikan.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Batal'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Hapus',
+                                style: TextStyle(color: Colors.red)),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  onDismissed: (_) async {
+                    await FirebaseFirestore.instance
+                        .collection('actions')
+                        .doc(docs[index].id)
+                        .delete();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Aksi berhasil dihapus')),
+                      );
+                    }
+                  },
+                  child: GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => EditAksiPage(
+                          docId: docs[index].id,
+                          data: docs[index].data() as Map<String, dynamic>,
+                        ),
+                      ),
+                    ),
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('proposals')
+                          .where('action_id', isEqualTo: docs[index].id)
+                          .snapshots(),
+                      builder: (context, proposalSnapshot) {
+                        final count = proposalSnapshot.data?.docs.length ?? 0;
+                        return _buildActionItem(
+                          data['title'] ?? 'Tanpa Judul',
+                          data['category'] ?? 'Umum',
+                          "$count Proposal Masuk",
+                          _getCategoryColor(data['category']),
+                          _getCategoryIcon(data['category']),
+                          data['photo_url'] ?? '',
+                        );
+                      },
+                    ),
+                  ),
                 );
               },
               childCount: docs.length,
@@ -253,44 +323,53 @@ class _ManagementAksiPageState extends State<ManagementAksiPage> {
   }
 
   Widget _buildActionItem(
-      String title, String category, String stats, Color color, IconData icon) {
+      String title, String category, String stats,
+      Color color, IconData icon, String photoUrl) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: Row(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(icon, color: color, size: 28),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
+          // Cover photo
+          photoUrl.isNotEmpty
+              ? Image.network(
+                  photoUrl,
+                  height: 130,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    height: 130,
+                    color: color.withValues(alpha: 0.08),
+                    child: Center(child: Icon(icon, size: 40, color: color.withValues(alpha: 0.4))),
+                  ),
+                )
+              : Container(
+                  height: 130,
+                  color: color.withValues(alpha: 0.08),
+                  child: Center(child: Icon(icon, size: 40, color: color.withValues(alpha: 0.4))),
+                ),
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   category.toUpperCase(),
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: color,
-                    letterSpacing: 0.8,
+                    fontSize: 10, fontWeight: FontWeight.w800,
+                    color: color, letterSpacing: 0.8,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -299,32 +378,33 @@ class _ManagementAksiPageState extends State<ManagementAksiPage> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
+                    fontWeight: FontWeight.w800, fontSize: 16,
                     color: const Color(0xFF1C1C1E),
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Row(
                   children: [
-                    Icon(Icons.description_outlined,
-                        size: 14, color: Colors.grey[400]),
+                    Icon(Icons.description_outlined, size: 14, color: Colors.grey[400]),
                     const SizedBox(width: 4),
                     Text(
                       stats,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        color: const Color(0xFF86868B),
+                        fontSize: 13, color: const Color(0xFF86868B),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                    const Spacer(),
+                    Icon(Icons.edit_outlined, size: 14, color: Colors.grey[400]),
+                    const SizedBox(width: 4),
+                    Text('Tap untuk edit',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11, color: Colors.grey[400])),
                   ],
                 ),
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded,
-              size: 24, color: Color(0xFFC7C7CC)),
         ],
       ),
     );

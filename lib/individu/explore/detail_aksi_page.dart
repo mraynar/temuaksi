@@ -17,10 +17,11 @@ class DetailAksiPage extends StatelessWidget {
     final String category = data['category'] ?? 'Lainnya';
     final String description = data['description'] ?? 'Tidak ada deskripsi.';
     final String criteria = data['criteria'] ?? '-';
-    final String benefits = data['benefits'] ?? '-';
+    final String benefits = data['syarat_ketentuan'] ?? data['benefits'] ?? '-';
     final String scale = data['scale'] ?? 'Nasional';
     final String target = data['target_peserta'] ?? '-';
     final String respon = data['respon_time'] ?? '-';
+    final String photoUrl = data['photo_url'] ?? '';
 
     final int minFunding = data['min_funding'] ?? 0;
     final int maxFunding = data['max_funding'] ?? 0;
@@ -54,25 +55,28 @@ class DetailAksiPage extends StatelessWidget {
                   ),
                 ),
                 flexibleSpace: FlexibleSpaceBar(
-                  background: Container(
-                    color: Colors.white,
-                    child: Center(
-                      child: Hero(
-                        tag: actionDoc.id,
-                        child: Image.asset(
-                          'assets/images/beranda/${_getImageName(category)}',
-                          width: 200,
-                          height: 150,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) => Icon(
+                  background: photoUrl.isNotEmpty
+                      ? Image.network(
+                          photoUrl,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: AppColors.primary.withOpacity(0.08),
+                            child: Icon(
+                              _getCategoryIcon(category),
+                              size: 80,
+                              color: AppColors.primary.withOpacity(0.2),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          color: AppColors.primary.withOpacity(0.08),
+                          child: Icon(
                             _getCategoryIcon(category),
                             size: 80,
-                            color: AppColors.primary.withValues(alpha: 0.1),
+                            color: AppColors.primary.withOpacity(0.2),
                           ),
                         ),
-                      ),
-                    ),
-                  ),
                 ),
               ),
               SliverToBoxAdapter(
@@ -196,7 +200,7 @@ class DetailAksiPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildSectionTitle("Benefit"),
+                      _buildSectionTitle("Syarat & Ketentuan"),
                       const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,

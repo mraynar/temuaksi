@@ -6,7 +6,9 @@ import '../../theme/app_colors.dart';
 import 'detail_aksi_page.dart'; 
 
 class ExplorePage extends StatefulWidget {
-  const ExplorePage({super.key});
+  final String? initialCategory;
+
+  const ExplorePage({super.key, this.initialCategory});
 
   @override
   State<ExplorePage> createState() => _ExplorePageState();
@@ -15,6 +17,14 @@ class ExplorePage extends StatefulWidget {
 class _ExplorePageState extends State<ExplorePage> {
   String _selectedCategory = 'Semua';
   final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialCategory != null) {
+      _selectedCategory = widget.initialCategory!;
+    }
+  }
 
   final List<String> _categories = [
     'Semua',
@@ -202,6 +212,7 @@ class _ExplorePageState extends State<ExplorePage> {
     final int minFunding = data['min_funding'] ?? 0;
     final int maxFunding = data['max_funding'] ?? 0;
     final String scale = data['scale'] ?? 'Nasional';
+    final String photoUrl = data['photo_url'] ?? '';
 
     final currencyFormat =
         NumberFormat.compactCurrency(locale: 'id_ID', symbol: 'Rp');
@@ -236,18 +247,35 @@ class _ExplorePageState extends State<ExplorePage> {
                 ClipRRect(
                   borderRadius:
                       const BorderRadius.vertical(top: Radius.circular(24)),
-                  child: Container(
-                    height: 160,
-                    width: double.infinity,
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    child: Center(
-                      child: Icon(
-                        _getCategoryIcon(category),
-                        size: 50,
-                        color: AppColors.primary.withValues(alpha: 0.4),
-                      ),
-                    ),
-                  ),
+                  child: photoUrl.isNotEmpty
+                      ? Image.network(
+                          photoUrl,
+                          height: 160,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            height: 160,
+                            color: AppColors.primary.withOpacity(0.1),
+                            child: Center(
+                              child: Icon(
+                                _getCategoryIcon(category),
+                                size: 50,
+                                color: AppColors.primary.withOpacity(0.3),
+                              ),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          height: 160,
+                          color: AppColors.primary.withOpacity(0.1),
+                          child: Center(
+                            child: Icon(
+                              _getCategoryIcon(category),
+                              size: 50,
+                              color: AppColors.primary.withOpacity(0.3),
+                            ),
+                          ),
+                        ),
                 ),
                 Positioned(
                   top: 15,

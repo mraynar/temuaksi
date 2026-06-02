@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../constants.dart';
+import '../theme/app_colors.dart';
 import 'register_individu_page.dart';
 import 'register_perusahaan_page.dart';
 

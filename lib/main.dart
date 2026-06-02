@@ -102,7 +102,7 @@ class AuthWrapper extends StatelessWidget {
             }
 
             if (!roleSnapshot.hasData || !roleSnapshot.data!.exists) {
-              return const LoadingScreen();
+              return const LandingPage();
             }
 
             final data = roleSnapshot.data!.data() as Map<String, dynamic>?;

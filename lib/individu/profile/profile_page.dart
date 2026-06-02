@@ -5,8 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'edit_profile_page.dart';
 import 'keamanan_page.dart';
 import 'faq_page.dart';
+import 'sertifikat/sertifikat_page.dart';
 import '../../theme/app_colors.dart';
-import '../../utils/pdf_generator.dart';
 
 import '../../utils/logout_helper.dart';
 
@@ -196,117 +196,6 @@ class _IndividuProfilePageState extends State<IndividuProfilePage> {
     );
   }
 
-  Widget _buildCertificateList(String userName) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: _firestore
-          .collection('proposals')
-          .where('user_id', isEqualTo: user!.uid)
-          .where('status', isEqualTo: 'selesai')
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          );
-        }
-
-        final docs = snapshot.data?.docs ?? [];
-        if (docs.isEmpty) {
-          return Container(
-            padding: const EdgeInsets.all(20),
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Center(
-              child: Text(
-                "Belum ada sertifikat tersedia.",
-                style: GoogleFonts.plusJakartaSans(
-                  color: Colors.grey,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-          );
-        }
-
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: docs.length,
-            separatorBuilder: (context, index) => const Divider(height: 1, color: Color(0xFFE5E5EA)),
-            itemBuilder: (context, index) {
-              final data = docs[index].data() as Map<String, dynamic>;
-              final eventName = data['nama_event'] ?? 'Kegiatan';
-
-              return ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blueAccent.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.workspace_premium_rounded, color: Colors.blueAccent, size: 22),
-                ),
-                title: Text(
-                  eventName,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: const Color(0xFF1D1D1F),
-                  ),
-                ),
-                subtitle: Text(
-                  "Status: Selesai",
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11,
-                    color: AppColors.success,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                trailing: ElevatedButton(
-                  onPressed: () {
-                    PdfGenerator.generateCertificate(userName, eventName);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: Text(
-                    "Cetak PDF",
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -440,14 +329,6 @@ class _IndividuProfilePageState extends State<IndividuProfilePage> {
           padding: const EdgeInsets.all(24),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              const Text("Sertifikat Saya",
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF86868B))),
-              const SizedBox(height: 16),
-              _buildCertificateList(name),
-              const SizedBox(height: 32),
               const Text("Pengaturan Akun",
                   style: TextStyle(
                       fontSize: 14,
@@ -468,6 +349,25 @@ class _IndividuProfilePageState extends State<IndividuProfilePage> {
                       MaterialPageRoute(
                           builder: (context) => const SecurityPage()));
                 }),
+              ]),
+              const SizedBox(height: 32),
+              const Text("Sertifikat Saya",
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF86868B))),
+              const SizedBox(height: 16),
+              _buildMenuCard([
+                _buildMenuItem(
+                  Icons.workspace_premium_rounded,
+                  "Lihat Sertifikat Saya",
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SertifikatPage(userName: name),
+                    ),
+                  ),
+                ),
               ]),
               const SizedBox(height: 32),
               const Text("Dukungan & Layanan",

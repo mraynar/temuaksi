@@ -3,10 +3,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'foto_perusahaan/foto_perusahaan_page.dart';
 import '../../theme/app_colors.dart';
 import 'topup_saldo_page.dart';
-
+import 'riwayat_transaksi_page.dart';
+import 'profil_publik_page.dart';
+import 'verifikasi_bisnis_page.dart';
+import 'manajemen_tim_page.dart';
 import '../../utils/logout_helper.dart';
+import '../../individu/profile/keamanan_page.dart' show SecurityPage;
 
 class CompanyProfilePage extends StatefulWidget {
   const CompanyProfilePage({super.key});
@@ -27,6 +32,10 @@ class _CompanyProfilePageState extends State<CompanyProfilePage> {
 
   void _handleLogout() async {
     await handleLogout(context);
+  }
+
+  void _go(Widget page) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
   }
 
   @override
@@ -64,7 +73,7 @@ class _CompanyProfilePageState extends State<CompanyProfilePage> {
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    _buildBalanceCard(saldo), 
+                    _buildBalanceCard(saldo),
                     const SizedBox(height: 24),
                     _buildImpactStats(),
                     const SizedBox(height: 32),
@@ -74,40 +83,60 @@ class _CompanyProfilePageState extends State<CompanyProfilePage> {
                           Icons.account_balance_wallet_rounded,
                           "Top Up Saldo Aksi",
                           "Tambah anggaran untuk kegiatan CSR", () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const TopUpSaldoPage(),
-                          ),
-                        );
+                        _go(const TopUpSaldoPage());
                       }),
                       _buildMenuItem(
                           Icons.receipt_long_rounded,
                           "Riwayat Transaksi",
                           "Lihat penggunaan dana CSR",
-                          () {}),
+                          () => _go(const RiwayatTransaksiPage())),
                     ]),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 32),
+                    _buildSectionLabel("FOTO PERUSAHAAN"),
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.white),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildMenuItem(
+                            Icons.add_photo_alternate_rounded,
+                            "Foto Tempat Perusahaan",
+                            "Tambah dan kelola foto gedung perusahaan",
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const FotoPerusahaanPage()),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     _buildSectionLabel("PROFESIONAL & LEGALITAS"),
                     _buildMenuContainer([
                       _buildMenuItem(
                           Icons.storefront_rounded,
                           "Profil Publik Perusahaan",
                           "Atur deskripsi dan portofolio",
-                          () {}),
+                          () => _go(const ProfilPublikPage())),
                       _buildMenuItem(
                           Icons.verified_user_outlined,
                           "Verifikasi Bisnis",
                           "NPWP, NIB, & Dokumen Legal",
-                          () {}),
+                          () => _go(const VerifikasiBisnisPage())),
                     ]),
                     const SizedBox(height: 24),
                     _buildSectionLabel("PENGATURAN ORGANISASI"),
                     _buildMenuContainer([
                       _buildMenuItem(Icons.people_outline_rounded,
-                          "Manajemen Tim", "Atur admin pengelola akun", () {}),
+                          "Manajemen Tim", "Atur admin pengelola akun",
+                          () => _go(const ManajemenTimPage())),
                       _buildMenuItem(Icons.security_rounded, "Keamanan Akun",
-                          "Sandi & akses API", () {}),
+                          "Sandi & akses API",
+                          () => _go(const SecurityPage())),
                     ]),
                     const SizedBox(height: 32),
                     _buildLogoutButton(),
@@ -308,29 +337,71 @@ class _CompanyProfilePageState extends State<CompanyProfilePage> {
     );
   }
 
+  /// Impact stats with live Firestore data
   Widget _buildImpactStats() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 20,
-              offset: const Offset(0, 10))
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildStatColumn("14", "Aksi Aktif"),
-          _buildDivider(),
-          _buildStatColumn("2.4k", "Total Relawan"),
-          _buildDivider(),
-          _buildStatColumn("48", "Partner"),
-        ],
-      ),
+    final uid = user!.uid;
+
+    return StreamBuilder<List<QuerySnapshot>>(
+      stream: Stream.fromFuture(Future.wait([
+        _firestore
+            .collection('aksi')
+            .where('perusahaan_id', isEqualTo: uid)
+            .where('status', isEqualTo: 'aktif')
+            .get(),
+        _firestore
+            .collection('aksi')
+            .where('perusahaan_id', isEqualTo: uid)
+            .get(),
+        _firestore
+            .collection('proposals')
+            .where('perusahaan_id', isEqualTo: uid)
+            .where('status', isEqualTo: 'diterima')
+            .get(),
+      ])),
+      builder: (context, snapshot) {
+        int aksiAktif = 0;
+        int totalRelawan = 0;
+        int partner = 0;
+
+        if (snapshot.hasData) {
+          aksiAktif = snapshot.data![0].docs.length;
+
+          for (final doc in snapshot.data![1].docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            totalRelawan += (data['jumlah_relawan'] as num?)?.toInt() ?? 0;
+          }
+
+          partner = snapshot.data![2].docs.length;
+        }
+
+        String relawanLabel = totalRelawan >= 1000
+            ? '${(totalRelawan / 1000).toStringAsFixed(1)}k'
+            : totalRelawan.toString();
+
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10))
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildStatColumn(aksiAktif.toString(), "Aksi Aktif"),
+              _buildDivider(),
+              _buildStatColumn(relawanLabel, "Total Relawan"),
+              _buildDivider(),
+              _buildStatColumn(partner.toString(), "Partner"),
+            ],
+          ),
+        );
+      },
     );
   }
 
