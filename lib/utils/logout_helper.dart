@@ -17,7 +17,12 @@ Future<void> handleLogout(BuildContext context) async {
         .any((p) => p.providerId == 'google.com') ?? false;
 
     if (isGoogleUser) {
-      await gsi.GoogleSignIn.instance.signOut();
+      try {
+        await gsi.GoogleSignIn.instance.signOut()
+            .timeout(const Duration(seconds: 5));
+      } catch (_) {
+        // ignore, lanjut Firebase signOut
+      }
     }
 
     await FirebaseAuth.instance.signOut();
