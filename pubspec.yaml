@@ -22,7 +22,7 @@ dependencies:
   image_picker: ^1.2.1
   firebase_storage: ^13.3.0
   intl: ^0.20.2 # Perbarui ke versi ini sesuai permintaan SDK
-  file_picker: ^6.1.1
+  file_picker: ^8.1.2
   flutter_localizations:
     sdk: flutter
   pdf: ^3.12.0
