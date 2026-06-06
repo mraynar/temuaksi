@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../theme/app_colors.dart';
-import 'pengajuan_proposal_page.dart'; 
+import '../proposal/pengajuan_proposal_page.dart';
 
 class DetailAksiPage extends StatelessWidget {
   final DocumentSnapshot actionDoc;

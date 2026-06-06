@@ -341,67 +341,81 @@ class _CompanyProfilePageState extends State<CompanyProfilePage> {
   Widget _buildImpactStats() {
     final uid = user!.uid;
 
-    return StreamBuilder<List<QuerySnapshot>>(
-      stream: Stream.fromFuture(Future.wait([
+    return FutureBuilder<List<QuerySnapshot>>(
+      future: Future.wait([
         _firestore
-            .collection('aksi')
-            .where('perusahaan_id', isEqualTo: uid)
-            .where('status', isEqualTo: 'aktif')
+            .collection('actions')
+            .where('company_id', isEqualTo: uid)
+            .where('status', isEqualTo: 'Aktif')
             .get(),
         _firestore
-            .collection('aksi')
-            .where('perusahaan_id', isEqualTo: uid)
+            .collection('volunteer_events')
+            .where('company_id', isEqualTo: uid)
             .get(),
         _firestore
             .collection('proposals')
             .where('perusahaan_id', isEqualTo: uid)
             .where('status', isEqualTo: 'diterima')
             .get(),
-      ])),
+      ]),
       builder: (context, snapshot) {
         int aksiAktif = 0;
         int totalRelawan = 0;
         int partner = 0;
 
-        if (snapshot.hasData) {
-          aksiAktif = snapshot.data![0].docs.length;
-
-          for (final doc in snapshot.data![1].docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            totalRelawan += (data['jumlah_relawan'] as num?)?.toInt() ?? 0;
-          }
-
-          partner = snapshot.data![2].docs.length;
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          // Tampilkan placeholder "0" saat loading
+          return _buildStatsContainer('0', '0', '0');
         }
+
+        if (snapshot.hasError || !snapshot.hasData) {
+          // Tampilkan "0" tanpa crash saat error
+          return _buildStatsContainer('0', '0', '0');
+        }
+
+        aksiAktif = snapshot.data![0].docs.length;
+
+        for (final doc in snapshot.data![1].docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          totalRelawan += (data['peserta_count'] as num?)?.toInt() ?? 0;
+        }
+
+        partner = snapshot.data![2].docs.length;
 
         String relawanLabel = totalRelawan >= 1000
             ? '${(totalRelawan / 1000).toStringAsFixed(1)}k'
             : totalRelawan.toString();
 
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10))
-            ],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildStatColumn(aksiAktif.toString(), "Aksi Aktif"),
-              _buildDivider(),
-              _buildStatColumn(relawanLabel, "Total Relawan"),
-              _buildDivider(),
-              _buildStatColumn(partner.toString(), "Partner"),
-            ],
-          ),
-        );
+        return _buildStatsContainer(
+            aksiAktif.toString(), relawanLabel, partner.toString());
       },
+    );
+  }
+
+  Widget _buildStatsContainer(
+      String aksiAktif, String relawan, String partner) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 20,
+              offset: const Offset(0, 10))
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildStatColumn(aksiAktif, "Aksi Aktif"),
+          _buildDivider(),
+          _buildStatColumn(relawan, "Total Relawan"),
+          _buildDivider(),
+          _buildStatColumn(partner, "Partner"),
+        ],
+      ),
     );
   }
 
@@ -422,7 +436,7 @@ class _CompanyProfilePageState extends State<CompanyProfilePage> {
   }
 
   Widget _buildDivider() =>
-      Container(height: 30, width: 1, color: Colors.grey.withOpacity(0.2));
+      Container(height: 30, width: 1, color: Colors.grey.withValues(alpha: 0.2));
 
   Widget _buildSectionLabel(String title) {
     return Padding(
@@ -478,7 +492,7 @@ class _CompanyProfilePageState extends State<CompanyProfilePage> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 18),
         decoration: BoxDecoration(
-          color: AppColors.error.withOpacity(0.08),
+          color: AppColors.error.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Center(

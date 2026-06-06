@@ -213,8 +213,38 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
                       .where('status', isEqualTo: _selectedFilter)
                       .snapshots(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData)
-                  return const Center(child: CircularProgressIndicator());
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+                        const SizedBox(height: 12),
+                        Text(
+                          "Gagal memuat data, coba lagi",
+                          style: GoogleFonts.plusJakartaSans(
+                              color: Colors.grey[600], fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(
+                    child: Text(
+                      "Belum ada proposal masuk",
+                      style: GoogleFonts.plusJakartaSans(
+                          color: Colors.grey, fontSize: 14),
+                    ),
+                  );
+                }
                 
                 final docs = List<DocumentSnapshot>.from(snapshot.data!.docs)
                   ..sort((a, b) {
@@ -239,7 +269,7 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                              color: Colors.black.withOpacity(0.02),
+                              color: Colors.black.withValues(alpha: 0.02),
                               blurRadius: 10,
                               offset: const Offset(0, 4))
                         ],
@@ -371,7 +401,7 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8)),
       child: Text(text,
           style: GoogleFonts.plusJakartaSans(
@@ -415,7 +445,7 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10)),
         child: Icon(icon, color: color, size: 20),
       ),
