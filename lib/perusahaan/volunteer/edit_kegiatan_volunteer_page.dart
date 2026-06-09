@@ -1,13 +1,14 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+
 import '../../theme/app_colors.dart';
+import '../../viewmodels/kegiatan_volunteer_viewmodel.dart';
 
 class EditKegiatanVolunteerPage extends StatefulWidget {
   final String docId;
@@ -28,11 +29,7 @@ class _EditKegiatanVolunteerPageState extends State<EditKegiatanVolunteerPage> {
   DateTime? _endDate;
   TimeOfDay? _jamMulai;
   File? _selectedImage;
-  bool _isLoading = false;
   String _existingPhotoUrl = '';
-
-  final String cloudName = "dm4ua5rj6";
-  final String uploadPreset = "temu_aksi_preset";
 
   final List<String> _kategoriList = [
     'Lingkungan',
@@ -89,25 +86,6 @@ class _EditKegiatanVolunteerPageState extends State<EditKegiatanVolunteerPage> {
     if (picked != null) {
       setState(() => _selectedImage = File(picked.path));
     }
-  }
-
-  Future<String?> _uploadImage(File file) async {
-    final url = Uri.parse(
-        "https://api.cloudinary.com/v1_1/$cloudName/image/upload");
-    var request = http.MultipartRequest("POST", url);
-    request.fields['upload_preset'] = uploadPreset;
-    request.files.add(await http.MultipartFile.fromPath('file', file.path));
-    try {
-      var response = await request.send();
-      if (response.statusCode == 200) {
-        var responseData = await response.stream.toBytes();
-        var jsonRes = jsonDecode(String.fromCharCodes(responseData));
-        return jsonRes['secure_url'];
-      }
-    } catch (e) {
-      debugPrint("Cloudinary Error: $e");
-    }
-    return null;
   }
 
   Future<void> _pickDate(bool isStart) async {
@@ -172,7 +150,7 @@ class _EditKegiatanVolunteerPageState extends State<EditKegiatanVolunteerPage> {
     );
   }
 
-  Future<void> _update() async {
+  Future<void> _update(KegiatanVolunteerViewModel vm) async {
     if (!_formKey.currentState!.validate()) return;
     if (_startDate == null || _endDate == null) {
       _showSnackBar("Harap pilih tanggal mulai dan selesai", Colors.red);
@@ -183,42 +161,30 @@ class _EditKegiatanVolunteerPageState extends State<EditKegiatanVolunteerPage> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    final jamStr =
+        '${_jamMulai!.hour.toString().padLeft(2, '0')}:${_jamMulai!.minute.toString().padLeft(2, '0')}';
 
-    try {
-      String photoUrl = _existingPhotoUrl;
-      if (_selectedImage != null) {
-        String? uploaded = await _uploadImage(_selectedImage!);
-        if (uploaded != null) photoUrl = uploaded;
-      }
+    final success = await vm.updateVolunteerEvent(
+      docId: widget.docId,
+      judul: _judulController.text.trim(),
+      kategori: _selectedKategori,
+      lokasi: _lokasiController.text.trim(),
+      deskripsi: _deskripsiController.text.trim(),
+      kuota: int.tryParse(_kuotaController.text.trim()) ?? 0,
+      persyaratan: _persyaratanController.text.trim(),
+      startDate: _startDate!,
+      endDate: _endDate!,
+      jamMulaiStr: jamStr,
+      existingPhotoUrl: _existingPhotoUrl,
+      newImageFile: _selectedImage,
+    );
 
-      final jamStr =
-          '${_jamMulai!.hour.toString().padLeft(2, '0')}:${_jamMulai!.minute.toString().padLeft(2, '0')}';
-
-      await FirebaseFirestore.instance
-          .collection('volunteer_events')
-          .doc(widget.docId)
-          .update({
-        'judul': _judulController.text.trim(),
-        'kategori': _selectedKategori,
-        'lokasi': _lokasiController.text.trim(),
-        'deskripsi': _deskripsiController.text.trim(),
-        'kuota': int.tryParse(_kuotaController.text.trim()) ?? 0,
-        'persyaratan': _persyaratanController.text.trim(),
-        'start_date': Timestamp.fromDate(_startDate!),
-        'end_date': Timestamp.fromDate(_endDate!),
-        'jam_mulai': jamStr,
-        'photo_url': photoUrl,
-        'updated_at': FieldValue.serverTimestamp(),
-      });
-
-      if (!mounted) return;
+    if (!mounted) return;
+    if (success) {
       _showSnackBar("Kegiatan berhasil diperbarui!", AppColors.success);
       Navigator.pop(context);
-    } catch (e) {
-      if (mounted) _showSnackBar("Gagal: $e", Colors.red);
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+    } else {
+      _showSnackBar(vm.errorMessage ?? "Gagal memperbarui kegiatan", Colors.red);
     }
   }
 
@@ -226,6 +192,8 @@ class _EditKegiatanVolunteerPageState extends State<EditKegiatanVolunteerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<KegiatanVolunteerViewModel>();
+
     return Scaffold(
       backgroundColor: AppColors.neutral,
       appBar: AppBar(
@@ -245,7 +213,7 @@ class _EditKegiatanVolunteerPageState extends State<EditKegiatanVolunteerPage> {
         ),
       ),
       body: SafeArea(
-        child: _isLoading
+        child: vm.isLoading
             ? const Center(
                 child: CircularProgressIndicator(color: AppColors.primary))
             : SingleChildScrollView(
@@ -325,7 +293,7 @@ class _EditKegiatanVolunteerPageState extends State<EditKegiatanVolunteerPage> {
                         width: double.infinity,
                         height: 52,
                         child: ElevatedButton(
-                          onPressed: _isLoading ? null : _update,
+                          onPressed: vm.isLoading ? null : () => _update(vm),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             elevation: 0,

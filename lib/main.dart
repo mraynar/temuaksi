@@ -23,10 +23,10 @@ import 'viewmodels/explore_viewmodel.dart';
 import 'viewmodels/volunteer_viewmodel.dart';
 import 'viewmodels/proposal_viewmodel.dart';
 import 'viewmodels/profile_viewmodel.dart';
-import 'viewmodels/aksi_perusahaan_viewmodel.dart';
+import 'viewmodels/aksi_viewmodel.dart';
 import 'viewmodels/kegiatan_volunteer_viewmodel.dart';
-import 'viewmodels/proposal_perusahaan_viewmodel.dart';
-import 'viewmodels/profile_perusahaan_viewmodel.dart';
+import 'viewmodels/daftar_proposal_viewmodel.dart';
+import 'viewmodels/company_profile_viewmodel.dart';
 import 'viewmodels/admin_viewmodel.dart';
 
 void main() async {
@@ -63,10 +63,10 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => VolunteerViewModel()),
         ChangeNotifierProvider(create: (_) => ProposalViewModel()),
         ChangeNotifierProvider(create: (_) => ProfileViewModel()),
-        ChangeNotifierProvider(create: (_) => AksiPerusahaanViewModel()),
+        ChangeNotifierProvider(create: (_) => AksiViewModel()),
         ChangeNotifierProvider(create: (_) => KegiatanVolunteerViewModel()),
-        ChangeNotifierProvider(create: (_) => ProposalPerusahaanViewModel()),
-        ChangeNotifierProvider(create: (_) => ProfilePerusahaanViewModel()),
+        ChangeNotifierProvider(create: (_) => DaftarProposalViewModel()),
+        ChangeNotifierProvider(create: (_) => CompanyProfileViewModel()),
         ChangeNotifierProvider(create: (_) => AdminViewModel()),
       ],
       child: MaterialApp(
