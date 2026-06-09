@@ -169,4 +169,19 @@ class KegiatanVolunteerViewModel extends ChangeNotifier {
       return false;
     }
   }
+
+  /// Delete a volunteer event
+  Future<bool> deleteVolunteerEvent(String docId) async {
+    _setError(null);
+    _setLoading(true);
+    try {
+      await _firestore.collection('volunteer_events').doc(docId).delete();
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _setError('Gagal menghapus kegiatan: $e');
+      _setLoading(false);
+      return false;
+    }
+  }
 }

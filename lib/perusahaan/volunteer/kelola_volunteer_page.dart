@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../viewmodels/company_profile_viewmodel.dart';
+import '../../viewmodels/kegiatan_volunteer_viewmodel.dart';
 import '../../theme/app_colors.dart';
 import 'tambah_kegiatan_volunteer_page.dart';
 import 'edit_kegiatan_volunteer_page.dart';
@@ -40,7 +41,7 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
 
   @override
   Widget build(BuildContext context) {
-    final vm = context.watch<CompanyProfileViewModel>();
+    final vm = context.watch<KegiatanVolunteerViewModel>();
 
     if (vm.currentUid.isEmpty) {
       return const Scaffold(
@@ -96,7 +97,7 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
         controller: _tabController,
         children: [
           _buildKegiatanTab(context, vm),
-          _buildDaftarRelawanTab(vm),
+          _buildDaftarRelawanTab(context, vm),
         ],
       ),
     );
@@ -105,9 +106,10 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
   // ── Tab 1: Kegiatan Volunteer ─────────────────────────────────────────────
 
   Widget _buildKegiatanTab(
-      BuildContext context, CompanyProfileViewModel vm) {
+      BuildContext context, KegiatanVolunteerViewModel vm) {
+    final profileVm = context.read<CompanyProfileViewModel>();
     return StreamBuilder<QuerySnapshot>(
-      stream: vm.streamVolunteerEvents(),
+      stream: profileVm.streamVolunteerEvents(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -396,9 +398,10 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
 
   // ── Tab 2: Daftar Relawan ─────────────────────────────────────────────────
 
-  Widget _buildDaftarRelawanTab(CompanyProfileViewModel vm) {
+  Widget _buildDaftarRelawanTab(BuildContext context, KegiatanVolunteerViewModel vm) {
+    final profileVm = context.read<CompanyProfileViewModel>();
     return StreamBuilder<QuerySnapshot>(
-      stream: vm.streamVolunteerEvents(),
+      stream: profileVm.streamVolunteerEvents(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -496,7 +499,7 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
                     const Divider(height: 1, color: Color(0xFFE5E5EA)),
                     StreamBuilder<QuerySnapshot>(
                       stream:
-                          vm.streamEventRegistrants(actionDoc.id),
+                          profileVm.streamEventRegistrants(actionDoc.id),
                       builder: (context, volSnapshot) {
                         if (volSnapshot.connectionState ==
                             ConnectionState.waiting) {
