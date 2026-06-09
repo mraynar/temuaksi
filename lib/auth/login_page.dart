@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_sign_in/google_sign_in.dart' as gsi;
-import 'register_role_page.dart';
+import 'package:provider/provider.dart';
+
+import '../viewmodels/auth_viewmodel.dart';
 import '../theme/app_colors.dart';
-import '../components/main_navigation.dart';
-import '../components/main_navigation_perusahaan.dart';
-import '../components/main_navigation_admin.dart';
+import 'register_role_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,131 +14,40 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   bool _isPasswordVisible = false;
-  bool _isLoading = false;
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  Future<void> _handleLogin() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      _showSnackBar("Email dan kata sandi tidak boleh kosong");
-      return;
-    }
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
-    setState(() => _isLoading = true);
+  Future<void> _handleLogin(AuthViewModel vm) async {
+    final success = await vm.loginWithEmail(
+      email: _emailController.text,
+      password: _passwordController.text,
+    );
 
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
+    if (!mounted) return;
 
-      if (!mounted) return;
-
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/',
-        (route) => false,
-      );
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-
-      setState(() => _isLoading = false);
-
-      String message = "Terjadi kesalahan";
-
-      if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
-        message = "Email atau kata sandi salah";
-      } else if (e.code == 'wrong-password') {
-        message = "Kata sandi salah";
-      } else if (e.code == 'invalid-email') {
-        message = "Format email tidak valid";
-      } else {
-        message = e.message ?? "Terjadi kesalahan";
-      }
-
-      _showSnackBar(message);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      _showSnackBar("Terjadi kesalahan sistem: $e");
+    if (success) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+    } else if (vm.errorMessage != null) {
+      _showSnackBar(vm.errorMessage!);
     }
   }
 
-  Future<void> _handleGoogleSignIn() async {
-    setState(() => _isLoading = true);
-    try {
-      final gsi.GoogleSignInAccount? googleUser = await gsi.GoogleSignIn.instance.authenticate();
-      if (googleUser == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
+  Future<void> _handleGoogleSignIn(AuthViewModel vm) async {
+    final success = await vm.loginWithGoogle();
 
-      final gsi.GoogleSignInAuthentication googleAuth = googleUser.authentication;
-      
-      // Get the accessToken using authorizationClient
-      final gsi.GoogleSignInClientAuthorization clientAuth = 
-          await googleUser.authorizationClient.authorizeScopes([]);
+    if (!mounted) return;
 
-      final OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: clientAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      final UserCredential userCredential =
-          await FirebaseAuth.instance.signInWithCredential(credential);
-
-      final User? user = userCredential.user;
-      String role = 'individu';
-      
-      if (user != null) {
-        final docRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-        final docSnap = await docRef.get();
-
-        if (!docSnap.exists) {
-          await docRef.set({
-            'uid': user.uid,
-            'name': user.displayName ?? "Pengguna Google",
-            'nama_lengkap': user.displayName ?? "Pengguna Google",
-            'email': user.email ?? '',
-            'nomor_telepon': user.phoneNumber ?? '',
-            'role': 'Individu',
-            'photo_url': user.photoURL ?? '',
-            'createdAt': FieldValue.serverTimestamp(),
-            'created_at': FieldValue.serverTimestamp(),
-          });
-          role = 'individu';
-        } else {
-          final data = docSnap.data();
-          role = (data?['role'] ?? 'individu').toString().toLowerCase();
-        }
-      }
-
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-
-      if (role == 'perusahaan') {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const MainNavigationPerusahaan()),
-          (route) => false,
-        );
-      } else if (role == 'admin') {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const MainNavigationAdmin()),
-          (route) => false,
-        );
-      } else {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const MainNavigation()),
-          (route) => false,
-        );
-      }
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      _showSnackBar(e.message ?? "Gagal autentikasi Google");
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      _showSnackBar("Terjadi kesalahan sistem: $e");
+    if (success) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+    } else if (vm.errorMessage != null) {
+      _showSnackBar(vm.errorMessage!);
     }
   }
 
@@ -157,6 +63,8 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<AuthViewModel>();
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -196,7 +104,7 @@ class _LoginPageState extends State<LoginPage> {
                 controller: _emailController,
                 hintText: "nama@email.com",
                 keyboardType: TextInputType.emailAddress,
-                enabled: !_isLoading,
+                enabled: !vm.isLoading,
               ),
               const SizedBox(height: 20),
               _buildLabel("Kata Sandi"),
@@ -205,14 +113,14 @@ class _LoginPageState extends State<LoginPage> {
                 hintText: "Masukkan kata sandi",
                 isPassword: true,
                 obscureText: !_isPasswordVisible,
-                enabled: !_isLoading,
+                enabled: !vm.isLoading,
                 toggleVisibility: () =>
                     setState(() => _isPasswordVisible = !_isPasswordVisible),
               ),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: _isLoading ? null : () {},
+                  onPressed: vm.isLoading ? null : () {},
                   child: const Text(
                     "Lupa Kata Sandi?",
                     style: TextStyle(
@@ -223,7 +131,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
               const SizedBox(height: 30),
-              _buildLoginButton(),
+              _buildLoginButton(vm),
               const SizedBox(height: 40),
               Row(
                 children: [
@@ -238,11 +146,11 @@ class _LoginPageState extends State<LoginPage> {
                 ],
               ),
               const SizedBox(height: 30),
-              _buildGoogleButton(),
+              _buildGoogleButton(vm),
               const SizedBox(height: 40),
               Center(
                 child: GestureDetector(
-                  onTap: _isLoading
+                  onTap: vm.isLoading
                       ? null
                       : () {
                           Navigator.push(
@@ -327,7 +235,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildLoginButton() {
+  Widget _buildLoginButton(AuthViewModel vm) {
     return Container(
       width: double.infinity,
       height: 56,
@@ -341,7 +249,7 @@ class _LoginPageState extends State<LoginPage> {
         ],
       ),
       child: ElevatedButton(
-        onPressed: _isLoading ? null : _handleLogin,
+        onPressed: vm.isLoading ? null : () => _handleLogin(vm),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.4),
@@ -349,7 +257,7 @@ class _LoginPageState extends State<LoginPage> {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           elevation: 0,
         ),
-        child: _isLoading
+        child: vm.isLoading
             ? const SizedBox(
                 height: 24,
                 width: 24,
@@ -364,7 +272,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildGoogleButton() {
+  Widget _buildGoogleButton(AuthViewModel vm) {
     return Container(
       width: double.infinity,
       height: 56,
@@ -373,12 +281,12 @@ class _LoginPageState extends State<LoginPage> {
         border: Border.all(color: const Color(0xFFE5E5E7), width: 1.5),
       ),
       child: OutlinedButton(
-        onPressed: _isLoading ? null : _handleGoogleSignIn,
+        onPressed: vm.isLoading ? null : () => _handleGoogleSignIn(vm),
         style: OutlinedButton.styleFrom(
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             side: BorderSide.none),
-        child: _isLoading
+        child: vm.isLoading
             ? const SizedBox(
                 height: 24,
                 width: 24,
