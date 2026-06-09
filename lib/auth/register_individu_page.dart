@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+
+import '../viewmodels/register_viewmodel.dart';
 import '../theme/app_colors.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -14,7 +15,6 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _agreeToTerms = false;
-  bool _isLoading = false;
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -23,48 +23,29 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
-  void _handleRegister() async {
-    if (_passwordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Kata sandi tidak cocok!")),
-      );
-      return;
-    }
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
 
-    if (!_agreeToTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Harap setujui Syarat & Ketentuan")),
-      );
-      return;
-    }
+  Future<void> _handleRegister(RegisterViewModel vm) async {
+    final success = await vm.registerIndividu(
+      name: _nameController.text,
+      email: _emailController.text,
+      phone: _phoneController.text,
+      password: _passwordController.text,
+      confirmPassword: _confirmPasswordController.text,
+      agreeToTerms: _agreeToTerms,
+    );
 
-    setState(() => _isLoading = true);
+    if (!mounted) return;
 
-    try {
-      UserCredential userCredential =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .set({
-        'nama_lengkap': _nameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'nomor_telepon': _phoneController.text.trim(),
-        'role': 'individu',
-        'photo_url': '',
-        'created_at': FieldValue.serverTimestamp(),
-      });
-
-      await userCredential.user?.updateDisplayName(_nameController.text.trim());
-
-      if (!mounted) return;
-
-      setState(() => _isLoading = false);
-
+    if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Pendaftaran Berhasil! Selamat datang."),
@@ -72,29 +53,11 @@ class _RegisterPageState extends State<RegisterPage> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-
       Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-
-      String message = "Terjadi kesalahan";
-      if (e.code == 'weak-password') message = "Kata sandi terlalu lemah.";
-      if (e.code == 'email-already-in-use') message = "Email sudah terdaftar.";
-
+    } else if (vm.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(message),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Terjadi kesalahan sistem: $e"),
+          content: Text(vm.errorMessage!),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -104,6 +67,8 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<RegisterViewModel>();
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -140,21 +105,21 @@ class _RegisterPageState extends State<RegisterPage> {
               _buildTextField(
                   controller: _nameController,
                   hintText: "Masukkan nama lengkap",
-                  enabled: !_isLoading),
+                  enabled: !vm.isLoading),
               const SizedBox(height: 16),
               _buildLabel("Email"),
               _buildTextField(
                   controller: _emailController,
                   hintText: "nama@email.com",
                   keyboardType: TextInputType.emailAddress,
-                  enabled: !_isLoading),
+                  enabled: !vm.isLoading),
               const SizedBox(height: 16),
               _buildLabel("Nomor Telepon"),
               _buildTextField(
                   controller: _phoneController,
                   hintText: "0812xxxx",
                   keyboardType: TextInputType.phone,
-                  enabled: !_isLoading),
+                  enabled: !vm.isLoading),
               const SizedBox(height: 16),
               _buildLabel("Kata Sandi"),
               _buildTextField(
@@ -162,7 +127,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 hintText: "Minimal 8 karakter",
                 isPassword: true,
                 obscureText: !_isPasswordVisible,
-                enabled: !_isLoading,
+                enabled: !vm.isLoading,
                 toggleVisibility: () =>
                     setState(() => _isPasswordVisible = !_isPasswordVisible),
               ),
@@ -173,7 +138,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 hintText: "Ulangi kata sandi",
                 isPassword: true,
                 obscureText: !_isConfirmPasswordVisible,
-                enabled: !_isLoading,
+                enabled: !vm.isLoading,
                 toggleVisibility: () => setState(() =>
                     _isConfirmPasswordVisible = !_isConfirmPasswordVisible),
               ),
@@ -183,7 +148,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   Checkbox(
                     value: _agreeToTerms,
                     activeColor: AppColors.primary,
-                    onChanged: _isLoading
+                    onChanged: vm.isLoading
                         ? null
                         : (value) => setState(() => _agreeToTerms = value!),
                   ),
@@ -207,7 +172,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 ],
               ),
               const SizedBox(height: 30),
-              _buildRegisterButton(),
+              _buildRegisterButton(vm),
               const SizedBox(height: 40),
             ],
           ),
@@ -225,14 +190,15 @@ class _RegisterPageState extends State<RegisterPage> {
                 color: Color(0xFF1D1D1F))),
       );
 
-  Widget _buildTextField(
-      {required TextEditingController controller,
-      required String hintText,
-      bool isPassword = false,
-      bool obscureText = false,
-      bool enabled = true,
-      VoidCallback? toggleVisibility,
-      TextInputType? keyboardType}) {
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hintText,
+    bool isPassword = false,
+    bool obscureText = false,
+    bool enabled = true,
+    VoidCallback? toggleVisibility,
+    TextInputType? keyboardType,
+  }) {
     return Container(
       decoration: BoxDecoration(
           color: AppColors.neutral, borderRadius: BorderRadius.circular(12)),
@@ -258,19 +224,21 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  Widget _buildRegisterButton() {
+  Widget _buildRegisterButton(RegisterViewModel vm) {
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: (_agreeToTerms && !_isLoading) ? _handleRegister : null,
+        onPressed: (_agreeToTerms && !vm.isLoading)
+            ? () => _handleRegister(vm)
+            : null,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.4),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
-        child: _isLoading
+        child: vm.isLoading
             ? const SizedBox(
                 height: 24,
                 width: 24,

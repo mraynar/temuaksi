@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+import '../viewmodels/register_viewmodel.dart';
 import '../theme/app_colors.dart';
 
 class RegisterPerusahaanPage extends StatefulWidget {
@@ -17,13 +18,12 @@ class _RegisterPerusahaanPageState extends State<RegisterPerusahaanPage> {
   final _namaController = TextEditingController();
   final _deskripsiController = TextEditingController();
   final _bidangController = TextEditingController();
-  final _lokasiController = TextEditingController(); 
+  final _lokasiController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  bool _isLoading = false;
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _agreeToTerms = false;
@@ -41,72 +41,37 @@ class _RegisterPerusahaanPageState extends State<RegisterPerusahaanPage> {
     super.dispose();
   }
 
-  void _handleRegister() async {
-    if (_passwordController.text != _confirmPasswordController.text) {
-      _showSnackBar("Kata sandi tidak cocok!");
-      return;
-    }
-
-    if (_namaController.text.isEmpty ||
-        _lokasiController.text.isEmpty ||
-        _emailController.text.isEmpty) {
-      _showSnackBar("Nama, Lokasi, dan Email wajib diisi!");
-      return;
-    }
-
-    if (!_agreeToTerms) {
-      _showSnackBar("Harap setujui Syarat & Ketentuan");
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      UserCredential userCredential =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .set({
-        'uid': userCredential.user!.uid,
-        'nama_lengkap': _namaController.text.trim(),
-        'deskripsi_perusahaan': _deskripsiController.text.trim(),
-        'bidang_industri': _bidangController.text.trim(),
-        'alamat': _lokasiController.text.trim(),
-        'email': _emailController.text.trim(),
-        'nomor_telepon': _phoneController.text.trim(),
-        'role': 'perusahaan',
-        'photo_url': '',
-        'created_at': FieldValue.serverTimestamp(),
-      });
-     
-      if (!mounted) return;
-
-      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-    } on FirebaseAuthException catch (e) {
-      String message = "Terjadi kesalahan";
-      if (e.code == 'email-already-in-use') message = "Email sudah terdaftar";
-      if (e.code == 'weak-password') message = "Kata sandi terlalu lemah";
-      _showSnackBar(message);
-    } catch (e) {
-      _showSnackBar("Terjadi kesalahan sistem: $e");
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+  Future<void> _handleRegister(RegisterViewModel vm) async {
+    final success = await vm.registerPerusahaan(
+      nama: _namaController.text,
+      deskripsi: _deskripsiController.text,
+      bidang: _bidangController.text,
+      lokasi: _lokasiController.text,
+      email: _emailController.text,
+      phone: _phoneController.text,
+      password: _passwordController.text,
+      confirmPassword: _confirmPasswordController.text,
+      agreeToTerms: _agreeToTerms,
     );
+
+    if (!mounted) return;
+
+    if (success) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+    } else if (vm.errorMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(vm.errorMessage!),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<RegisterViewModel>();
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -149,18 +114,21 @@ class _RegisterPerusahaanPageState extends State<RegisterPerusahaanPage> {
                   controller: _namaController,
                   hintText: "Masukkan nama perusahaan",
                   icon: Icons.business_rounded,
+                  enabled: !vm.isLoading,
                 ),
                 _buildLabeledTextField(
                   label: "Bidang Industri",
                   controller: _bidangController,
                   hintText: "Contoh: Teknologi, Lingkungan",
                   icon: Icons.category_rounded,
+                  enabled: !vm.isLoading,
                 ),
                 _buildLabeledTextField(
                   label: "Lokasi Perusahaan",
                   controller: _lokasiController,
                   hintText: "Masukkan alamat lengkap perusahaan",
                   icon: Icons.location_on_rounded,
+                  enabled: !vm.isLoading,
                 ),
                 _buildLabeledTextField(
                   label: "Deskripsi Perusahaan",
@@ -168,6 +136,7 @@ class _RegisterPerusahaanPageState extends State<RegisterPerusahaanPage> {
                   hintText: "Jelaskan singkat tentang perusahaan",
                   icon: Icons.description_rounded,
                   maxLines: 3,
+                  enabled: !vm.isLoading,
                 ),
                 _buildLabeledTextField(
                   label: "Email Perusahaan",
@@ -175,6 +144,7 @@ class _RegisterPerusahaanPageState extends State<RegisterPerusahaanPage> {
                   hintText: "perusahaan@email.com",
                   icon: Icons.email_rounded,
                   keyboardType: TextInputType.emailAddress,
+                  enabled: !vm.isLoading,
                 ),
                 _buildLabeledTextField(
                   label: "Nomor Telepon",
@@ -182,6 +152,7 @@ class _RegisterPerusahaanPageState extends State<RegisterPerusahaanPage> {
                   hintText: "08123456789",
                   icon: Icons.phone_android_rounded,
                   keyboardType: TextInputType.phone,
+                  enabled: !vm.isLoading,
                 ),
                 _buildLabeledTextField(
                   label: "Kata Sandi",
@@ -190,6 +161,7 @@ class _RegisterPerusahaanPageState extends State<RegisterPerusahaanPage> {
                   icon: Icons.lock_rounded,
                   isPassword: true,
                   obscureText: !_isPasswordVisible,
+                  enabled: !vm.isLoading,
                   toggleVisibility: () =>
                       setState(() => _isPasswordVisible = !_isPasswordVisible),
                 ),
@@ -200,6 +172,7 @@ class _RegisterPerusahaanPageState extends State<RegisterPerusahaanPage> {
                   icon: Icons.lock_clock_rounded,
                   isPassword: true,
                   obscureText: !_isConfirmPasswordVisible,
+                  enabled: !vm.isLoading,
                   toggleVisibility: () => setState(() =>
                       _isConfirmPasswordVisible = !_isConfirmPasswordVisible),
                 ),
@@ -214,8 +187,10 @@ class _RegisterPerusahaanPageState extends State<RegisterPerusahaanPage> {
                         activeColor: AppColors.primary,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(4)),
-                        onChanged: (value) =>
-                            setState(() => _agreeToTerms = value!),
+                        onChanged: vm.isLoading
+                            ? null
+                            : (value) =>
+                                setState(() => _agreeToTerms = value!),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -233,17 +208,18 @@ class _RegisterPerusahaanPageState extends State<RegisterPerusahaanPage> {
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed:
-                        (_agreeToTerms && !_isLoading) ? _handleRegister : null,
+                    onPressed: (_agreeToTerms && !vm.isLoading)
+                        ? () => _handleRegister(vm)
+                        : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       disabledBackgroundColor:
-                          AppColors.primary.withOpacity(0.4),
+                          AppColors.primary.withValues(alpha: 0.4),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16)),
                       elevation: 0,
                     ),
-                    child: _isLoading
+                    child: vm.isLoading
                         ? const SizedBox(
                             height: 24,
                             width: 24,
@@ -276,6 +252,7 @@ class _RegisterPerusahaanPageState extends State<RegisterPerusahaanPage> {
     required IconData icon,
     bool isPassword = false,
     bool obscureText = false,
+    bool enabled = true,
     VoidCallback? toggleVisibility,
     TextInputType? keyboardType,
     int maxLines = 1,
@@ -303,6 +280,7 @@ class _RegisterPerusahaanPageState extends State<RegisterPerusahaanPage> {
             obscureText: obscureText,
             keyboardType: keyboardType,
             maxLines: maxLines,
+            enabled: enabled,
             style: GoogleFonts.plusJakartaSans(
                 fontSize: 15, color: const Color(0xFF1D1D1F)),
             decoration: InputDecoration(
@@ -321,7 +299,7 @@ class _RegisterPerusahaanPageState extends State<RegisterPerusahaanPage> {
                         color: const Color(0xFFB0B0B5),
                         size: 20,
                       ),
-                      onPressed: toggleVisibility,
+                      onPressed: enabled ? toggleVisibility : null,
                     )
                   : null,
             ),
