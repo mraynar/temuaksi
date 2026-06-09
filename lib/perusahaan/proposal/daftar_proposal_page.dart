@@ -5,7 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../viewmodels/daftar_proposal_viewmodel.dart';
-import '../../../theme/app_colors.dart';
+import '../../theme/app_colors.dart';
 import '../../utils/pdf_generator.dart';
 
 class DaftarProposalPage extends StatefulWidget {
