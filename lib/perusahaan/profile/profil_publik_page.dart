@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
+import '../../viewmodels/company_profile_viewmodel.dart';
 
 class ProfilPublikPage extends StatefulWidget {
   const ProfilPublikPage({super.key});
@@ -13,7 +13,6 @@ class ProfilPublikPage extends StatefulWidget {
 
 class _ProfilPublikPageState extends State<ProfilPublikPage> {
   final _formKey = GlobalKey<FormState>();
-  final _uid = FirebaseAuth.instance.currentUser?.uid;
 
   final _deskripsiController = TextEditingController();
   final _websiteController = TextEditingController();
@@ -29,34 +28,31 @@ class _ProfilPublikPageState extends State<ProfilPublikPage> {
   }
 
   Future<void> _loadData() async {
-    if (_uid == null) return;
+    final vm = context.read<CompanyProfileViewModel>();
+    if (vm.currentUid.isEmpty) return;
     setState(() => _isLoading = true);
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(_uid)
-          .get();
-      if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>;
-        _deskripsiController.text = data['deskripsi_perusahaan'] ?? '';
-        _websiteController.text = data['website'] ?? '';
-        _tahunController.text = data['tahun_berdiri']?.toString() ?? '';
-      }
+      final data = await vm.loadCompanyProfile();
+      _deskripsiController.text = data['deskripsi_perusahaan'] ?? '';
+      _websiteController.text = data['website'] ?? '';
+      _tahunController.text = data['tahun_berdiri']?.toString() ?? '';
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate() || _uid == null) return;
+    final vm = context.read<CompanyProfileViewModel>();
+    if (!_formKey.currentState!.validate() || vm.currentUid.isEmpty) return;
     setState(() => _isSaving = true);
     try {
-      await FirebaseFirestore.instance.collection('users').doc(_uid).update({
-        'deskripsi_perusahaan': _deskripsiController.text.trim(),
-        'website': _websiteController.text.trim(),
-        'tahun_berdiri': _tahunController.text.trim(),
-      });
-      if (mounted) {
+      final success = await vm.updatePublicProfile(
+        deskripsi: _deskripsiController.text.trim(),
+        website: _websiteController.text.trim(),
+        tahunBerdiri: _tahunController.text.trim(),
+      );
+      if (!mounted) return;
+      if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Berhasil disimpan',
@@ -65,6 +61,13 @@ class _ProfilPublikPageState extends State<ProfilPublikPage> {
             behavior: SnackBarBehavior.floating,
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(vm.errorMessage ?? 'Gagal menyimpan'),
+            backgroundColor: AppColors.error,
           ),
         );
       }

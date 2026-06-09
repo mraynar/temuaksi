@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../theme/app_colors.dart';
+import '../../viewmodels/company_profile_viewmodel.dart';
 
 class RiwayatTransaksiPage extends StatelessWidget {
   const RiwayatTransaksiPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final vm = context.watch<CompanyProfileViewModel>();
     final currencyFormat = NumberFormat.currency(
       locale: 'id_ID',
       symbol: 'Rp ',
@@ -30,14 +31,10 @@ class RiwayatTransaksiPage extends StatelessWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
       ),
-      body: uid == null
+      body: vm.currentUid.isEmpty
           ? const Center(child: Text('Tidak terautentikasi'))
           : StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('transactions')
-                  .where('company_id', isEqualTo: uid)
-                  .orderBy('created_at', descending: true)
-                  .snapshots(),
+              stream: vm.streamTransactions(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());

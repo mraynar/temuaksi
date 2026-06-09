@@ -222,6 +222,17 @@ class ProfileViewModel extends ChangeNotifier {
     }
   }
 
+  /// Stream of user's completed proposals for certificates
+  Stream<QuerySnapshot> streamUserCertificates() {
+    final uid = currentUid;
+    if (uid.isEmpty) return const Stream.empty();
+    return _firestore
+        .collection('proposals')
+        .where('user_id', isEqualTo: uid)
+        .where('status', isEqualTo: 'selesai')
+        .snapshots();
+  }
+
   String _mapFirebaseError(FirebaseAuthException e) {
     switch (e.code) {
       case 'wrong-password':

@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
+import '../../viewmodels/company_profile_viewmodel.dart';
 
 class VerifikasiBisnisPage extends StatelessWidget {
   const VerifikasiBisnisPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final vm = context.watch<CompanyProfileViewModel>();
+    final uid = vm.currentUid;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
@@ -21,13 +23,10 @@ class VerifikasiBisnisPage extends StatelessWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
       ),
-      body: uid == null
+      body: uid.isEmpty
           ? const Center(child: Text('Tidak terautentikasi'))
           : StreamBuilder<DocumentSnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(uid)
-                  .snapshots(),
+              stream: vm.streamCompanyProfile(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());

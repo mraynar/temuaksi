@@ -1,25 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
+import '../viewmodels/admin_viewmodel.dart';
 
 class DashboardAdminPage extends StatelessWidget {
   const DashboardAdminPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final FirebaseFirestore firestore = FirebaseFirestore.instance;
+    final vm = context.watch<AdminViewModel>();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
       body: FutureBuilder<List<QuerySnapshot>>(
-        future: Future.wait([
-          firestore.collection('users').get(),
-          firestore.collection('proposals').get(),
-          firestore.collection('actions').get(),
-          firestore.collection('volunteer_events').get(),
-        ]),
+        future: vm.getDashboardStats(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(

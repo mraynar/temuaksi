@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
+import '../../viewmodels/company_profile_viewmodel.dart';
 
 class ManajemenTimPage extends StatelessWidget {
   const ManajemenTimPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final vm = context.watch<CompanyProfileViewModel>();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
@@ -21,14 +22,10 @@ class ManajemenTimPage extends StatelessWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
       ),
-      body: uid == null
+      body: vm.currentUid.isEmpty
           ? const Center(child: Text('Tidak terautentikasi'))
           : StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .where('parent_uid', isEqualTo: uid)
-                  .where('role', isEqualTo: 'admin_perusahaan')
-                  .snapshots(),
+              stream: vm.streamCompanyTeam(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());

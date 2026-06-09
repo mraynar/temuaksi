@@ -1,12 +1,11 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
 import '../../../theme/app_colors.dart';
+import '../../../viewmodels/company_profile_viewmodel.dart';
 
 class FotoPerusahaanPage extends StatefulWidget {
   const FotoPerusahaanPage({super.key});
@@ -16,10 +15,7 @@ class FotoPerusahaanPage extends StatefulWidget {
 }
 
 class _FotoPerusahaanPageState extends State<FotoPerusahaanPage> {
-  final user = FirebaseAuth.instance.currentUser;
   bool _isUploadingPhoto = false;
-  final String cloudName = "dm4ua5rj6";
-  final String uploadPreset = "temu_aksi_preset";
 
   void _showSnackBar(String message, Color color) {
     if (!mounted) return;
@@ -32,106 +28,58 @@ class _FotoPerusahaanPageState extends State<FotoPerusahaanPage> {
     );
   }
 
-  Future<String?> _uploadToCloudinary(File file) async {
-    final url = Uri.parse("https://api.cloudinary.com/v1_1/$cloudName/image/upload");
-
-    var request = http.MultipartRequest("POST", url);
-    request.fields['upload_preset'] = uploadPreset;
-    request.files.add(await http.MultipartFile.fromPath('file', file.path));
-
-    try {
-      var response = await request.send();
-      if (response.statusCode == 200) {
-        var responseData = await response.stream.toBytes();
-        var responseString = String.fromCharCodes(responseData);
-        var jsonRes = jsonDecode(responseString);
-        return jsonRes['secure_url'];
-      }
-    } catch (e) {
-      debugPrint("Cloudinary Error: $e");
-    }
-    return null;
-  }
-
-  Future<void> _pickAndUploadPhoto() async {
+  Future<void> _pickAndUploadPhoto(CompanyProfileViewModel vm) async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
     if (pickedFile == null) return;
 
     setState(() => _isUploadingPhoto = true);
 
-    try {
-      final file = File(pickedFile.path);
-      final String? uploadedUrl = await _uploadToCloudinary(file);
-      if (uploadedUrl == null) throw Exception("Gagal mengunggah foto");
+    final file = File(pickedFile.path);
+    final success = await vm.addCompanyPhoto(file);
 
-      await FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
-        'company_photos': FieldValue.arrayUnion([uploadedUrl])
-      });
-      _showSnackBar("Foto berhasil ditambahkan", AppColors.primary);
-    } catch (e) {
-      _showSnackBar("Gagal mengunggah foto: $e", Colors.redAccent);
-    } finally {
-      if (mounted) {
-        setState(() => _isUploadingPhoto = false);
+    if (mounted) {
+      setState(() => _isUploadingPhoto = false);
+      if (success) {
+        _showSnackBar("Foto berhasil ditambahkan", AppColors.primary);
+      } else {
+        _showSnackBar(vm.errorMessage ?? "Gagal mengunggah foto", Colors.redAccent);
       }
     }
   }
 
-  Future<void> _deletePhoto(String url) async {
-    try {
-      await FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
-        'company_photos': FieldValue.arrayRemove([url])
-      });
-      _showSnackBar("Foto berhasil dihapus", AppColors.primary);
-    } catch (e) {
-      _showSnackBar("Gagal menghapus foto: $e", Colors.redAccent);
+  Future<void> _deletePhoto(CompanyProfileViewModel vm, String url) async {
+    final success = await vm.deleteCompanyPhoto(url);
+    if (mounted) {
+      if (success) {
+        _showSnackBar("Foto berhasil dihapus", AppColors.primary);
+      } else {
+        _showSnackBar(vm.errorMessage ?? "Gagal menghapus foto", Colors.redAccent);
+      }
     }
   }
 
-  Future<void> _replacePhoto(String oldUrl) async {
+  Future<void> _replacePhoto(CompanyProfileViewModel vm, String oldUrl) async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
     if (pickedFile == null) return;
 
     setState(() => _isUploadingPhoto = true);
 
-    try {
-      final file = File(pickedFile.path);
-      final String? newUrl = await _uploadToCloudinary(file);
-      if (newUrl == null) throw Exception("Gagal mengunggah foto baru");
+    final file = File(pickedFile.path);
+    final success = await vm.replaceCompanyPhoto(oldUrl, file);
 
-      final doc = await FirebaseFirestore.instance.collection('users').doc(user!.uid).get();
-      if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>;
-        final List<String> photos = List<String>.from(data['company_photos'] ?? []);
-        final idx = photos.indexOf(oldUrl);
-        if (idx != -1) {
-          photos[idx] = newUrl;
-          await FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
-            'company_photos': photos,
-          });
-          _showSnackBar("Foto berhasil diganti", AppColors.primary);
-        } else {
-          await FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
-            'company_photos': FieldValue.arrayRemove([oldUrl])
-          });
-          await FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
-            'company_photos': FieldValue.arrayUnion([newUrl])
-          });
-          _showSnackBar("Foto berhasil diganti", AppColors.primary);
-        }
-      }
-    } catch (e) {
-      _showSnackBar("Gagal mengganti foto: $e", Colors.redAccent);
-    } finally {
-      if (mounted) {
-        setState(() => _isUploadingPhoto = false);
+    if (mounted) {
+      setState(() => _isUploadingPhoto = false);
+      if (success) {
+        _showSnackBar("Foto berhasil diganti", AppColors.primary);
+      } else {
+        _showSnackBar(vm.errorMessage ?? "Gagal mengganti foto", Colors.redAccent);
       }
     }
   }
 
-  void _showPhotoActions(String url, int index) {
+  void _showPhotoActions(CompanyProfileViewModel vm, String url, int index) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -161,7 +109,7 @@ class _FotoPerusahaanPageState extends State<FotoPerusahaanPage> {
               ),
               onTap: () {
                 Navigator.pop(context);
-                _replacePhoto(url);
+                _replacePhoto(vm, url);
               },
             ),
             ListTile(
@@ -175,7 +123,7 @@ class _FotoPerusahaanPageState extends State<FotoPerusahaanPage> {
               ),
               onTap: () {
                 Navigator.pop(context);
-                _deletePhoto(url);
+                _deletePhoto(vm, url);
               },
             ),
             const SizedBox(height: 12),
@@ -185,9 +133,9 @@ class _FotoPerusahaanPageState extends State<FotoPerusahaanPage> {
     );
   }
 
-  Widget _buildPhotoCard(String url, int index) {
+  Widget _buildPhotoCard(CompanyProfileViewModel vm, String url, int index) {
     return GestureDetector(
-      onTap: () => _showPhotoActions(url, index),
+      onTap: () => _showPhotoActions(vm, url, index),
       child: Container(
         width: 140,
         height: 140,
@@ -241,9 +189,9 @@ class _FotoPerusahaanPageState extends State<FotoPerusahaanPage> {
     );
   }
 
-  Widget _buildAddPhotoCard() {
+  Widget _buildAddPhotoCard(CompanyProfileViewModel vm) {
     return GestureDetector(
-      onTap: _isUploadingPhoto ? null : _pickAndUploadPhoto,
+      onTap: _isUploadingPhoto ? null : () => _pickAndUploadPhoto(vm),
       child: Container(
         width: 140,
         height: 140,
@@ -288,7 +236,9 @@ class _FotoPerusahaanPageState extends State<FotoPerusahaanPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (user == null) {
+    final vm = context.watch<CompanyProfileViewModel>();
+
+    if (vm.currentUid.isEmpty) {
       return const Scaffold(
         body: Center(
           child: CircularProgressIndicator(),
@@ -312,7 +262,7 @@ class _FotoPerusahaanPageState extends State<FotoPerusahaanPage> {
         ),
       ),
       body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots(),
+        stream: vm.streamCompanyProfile(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -352,8 +302,8 @@ class _FotoPerusahaanPageState extends State<FotoPerusahaanPage> {
                   spacing: 12,
                   runSpacing: 12,
                   children: [
-                    ...photos.asMap().entries.map((entry) => _buildPhotoCard(entry.value, entry.key)),
-                    if (photos.length < 5) _buildAddPhotoCard(),
+                    ...photos.asMap().entries.map((entry) => _buildPhotoCard(vm, entry.value, entry.key)),
+                    if (photos.length < 5) _buildAddPhotoCard(vm),
                   ],
                 ),
                 if (_isUploadingPhoto) ...[

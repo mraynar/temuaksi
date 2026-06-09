@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../theme/app_colors.dart';
+import '../../viewmodels/company_profile_viewmodel.dart';
 
 class TopUpSaldoPage extends StatefulWidget {
   const TopUpSaldoPage({super.key});
@@ -14,8 +14,6 @@ class TopUpSaldoPage extends StatefulWidget {
 
 class _TopUpSaldoPageState extends State<TopUpSaldoPage> {
   final TextEditingController _amountController = TextEditingController();
-  final User? user = FirebaseAuth.instance.currentUser;
-  bool _isLoading = false;
   String? _selectedNominal;
 
   final List<int> _presets = [
@@ -38,7 +36,7 @@ class _TopUpSaldoPageState extends State<TopUpSaldoPage> {
     return NumberFormat.decimalPattern('id_ID').format(int.parse(s));
   }
 
-  Future<void> _processTopUp() async {
+  Future<void> _processTopUp(CompanyProfileViewModel vm) async {
     final String cleanText = _amountController.text.replaceAll('.', '');
     final int? amount = int.tryParse(cleanText);
 
@@ -48,47 +46,13 @@ class _TopUpSaldoPageState extends State<TopUpSaldoPage> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    final success = await vm.topUpSaldo(amount);
 
-    try {
-      final userDoc =
-          FirebaseFirestore.instance.collection('users').doc(user!.uid);
-
-      await FirebaseFirestore.instance.runTransaction((transaction) async {
-        DocumentSnapshot snapshot = await transaction.get(userDoc);
-
-        if (!snapshot.exists) {
-          throw Exception("Data perusahaan tidak ditemukan!");
-        }
-
-        int currentBalance = 0;
-        try {
-          currentBalance = snapshot.get('saldo_csr') ?? 0;
-        } catch (e) {
-          currentBalance = 0;
-        }
-
-        int newBalance = currentBalance + amount;
-
-        transaction.update(userDoc, {'saldo_csr': newBalance});
-
-        DocumentReference historyDoc =
-            FirebaseFirestore.instance.collection('transactions').doc();
-        transaction.set(historyDoc, {
-          'company_id': user!.uid,
-          'amount': amount,
-          'type': 'topup',
-          'status': 'success',
-          'created_at': FieldValue.serverTimestamp(),
-        });
-      });
-
-      if (!mounted) return;
+    if (!mounted) return;
+    if (success) {
       _showSuccessDialog(amount);
-    } catch (e) {
-      _showSnackBar("Gagal memproses: $e", AppColors.error);
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+    } else {
+      _showSnackBar(vm.errorMessage ?? "Gagal memproses pengisian saldo", AppColors.error);
     }
   }
 
@@ -148,6 +112,8 @@ class _TopUpSaldoPageState extends State<TopUpSaldoPage> {
 
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<CompanyProfileViewModel>();
+
     return Scaffold(
       backgroundColor: AppColors.neutral,
       appBar: AppBar(
@@ -269,14 +235,14 @@ class _TopUpSaldoPageState extends State<TopUpSaldoPage> {
               width: double.infinity,
               height: 60,
               child: ElevatedButton(
-                onPressed: _isLoading ? null : _processTopUp,
+                onPressed: vm.isLoading ? null : () => _processTopUp(vm),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18)),
                   elevation: 0,
                 ),
-                child: _isLoading
+                child: vm.isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
                     : Text("Proses Pembayaran",
                         style: GoogleFonts.plusJakartaSans(
@@ -295,7 +261,7 @@ class _TopUpSaldoPageState extends State<TopUpSaldoPage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.05),
+        color: AppColors.primary.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(

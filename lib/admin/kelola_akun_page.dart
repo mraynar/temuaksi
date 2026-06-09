@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
+import '../viewmodels/admin_viewmodel.dart';
 
 class KelolaAkunPage extends StatelessWidget {
   const KelolaAkunPage({super.key});
 
-  void _confirmDelete(BuildContext context, String docId, String name) {
+  void _confirmDelete(BuildContext context, AdminViewModel vm, String docId, String name) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -36,26 +38,15 @@ class KelolaAkunPage extends StatelessWidget {
             ),
             onPressed: () async {
               Navigator.pop(context);
-              try {
-                await FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(docId)
-                    .delete();
+              final success = await vm.deleteUser(docId);
+              if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      "Akun berhasil dihapus",
+                      success ? "Akun berhasil dihapus" : vm.errorMessage ?? "Gagal menghapus akun",
                       style: GoogleFonts.plusJakartaSans(),
                     ),
-                    backgroundColor: Colors.redAccent,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text("Gagal menghapus akun: $e"),
-                    backgroundColor: Colors.red,
+                    backgroundColor: success ? AppColors.success : Colors.red,
                     behavior: SnackBarBehavior.floating,
                   ),
                 );
@@ -85,7 +76,7 @@ class KelolaAkunPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -99,18 +90,9 @@ class KelolaAkunPage extends StatelessWidget {
     );
   }
 
-  Widget _buildUserList(String? roleFilter) {
-    Query query = FirebaseFirestore.instance.collection('users');
-    if (roleFilter != null) {
-      if (roleFilter == 'individu') {
-        query = query.where('role', whereIn: ['individu', 'Individu']);
-      } else if (roleFilter == 'perusahaan') {
-        query = query.where('role', whereIn: ['perusahaan', 'Perusahaan']);
-      }
-    }
-
+  Widget _buildUserList(BuildContext context, AdminViewModel vm, String? roleFilter) {
     return StreamBuilder<QuerySnapshot>(
-      stream: query.snapshots(),
+      stream: vm.streamUsers(roleFilter),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return const Center(child: Text("Terjadi kesalahan"));
@@ -152,7 +134,7 @@ class KelolaAkunPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
+                    color: Colors.black.withValues(alpha: 0.03),
                     blurRadius: 10,
                     offset: const Offset(0, 5),
                   ),
@@ -162,7 +144,7 @@ class KelolaAkunPage extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 26,
-                    backgroundColor: AppColors.primary.withOpacity(0.1),
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                     backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
                     child: photoUrl.isEmpty
                         ? Icon(
@@ -211,7 +193,7 @@ class KelolaAkunPage extends StatelessWidget {
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                    onPressed: () => _confirmDelete(context, doc.id, name),
+                    onPressed: () => _confirmDelete(context, vm, doc.id, name),
                   ),
                 ],
               ),
@@ -224,6 +206,8 @@ class KelolaAkunPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<AdminViewModel>();
+
     return DefaultTabController(
       length: 3,
       child: Scaffold(
@@ -260,9 +244,9 @@ class KelolaAkunPage extends StatelessWidget {
         ),
         body: TabBarView(
           children: [
-            _buildUserList(null),
-            _buildUserList('individu'),
-            _buildUserList('perusahaan'),
+            _buildUserList(context, vm, null),
+            _buildUserList(context, vm, 'individu'),
+            _buildUserList(context, vm, 'perusahaan'),
           ],
         ),
       ),

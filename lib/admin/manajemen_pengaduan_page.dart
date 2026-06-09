@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
+import '../viewmodels/admin_viewmodel.dart';
 
 class ManajemenPengaduanPage extends StatefulWidget {
   const ManajemenPengaduanPage({super.key});
@@ -12,37 +14,31 @@ class ManajemenPengaduanPage extends StatefulWidget {
 }
 
 class _ManajemenPengaduanPageState extends State<ManajemenPengaduanPage> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String _selectedStatusFilter = 'all';
 
-  Future<void> _updateComplaintStatus(String docId, String newStatus) async {
-    try {
-      await _firestore.collection('complaints').doc(docId).update({
-        'status': newStatus,
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Status pengaduan berhasil diperbarui ke '$newStatus'."),
-            backgroundColor: AppColors.success,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Gagal memperbarui status: $e"),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
+  Future<void> _updateComplaintStatus(AdminViewModel vm, String docId, String newStatus) async {
+    final success = await vm.updateComplaintStatus(docId, newStatus);
+    if (!mounted) return;
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Status pengaduan berhasil diperbarui ke '$newStatus'."),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Gagal memperbarui status: ${vm.errorMessage ?? ''}"),
+          backgroundColor: AppColors.error,
+        ),
+      );
     }
   }
 
-  void _showDetailModal(Map<String, dynamic> data, String docId) {
+  void _showDetailModal(AdminViewModel vm, Map<String, dynamic> data, String docId) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -100,7 +96,7 @@ class _ManajemenPengaduanPageState extends State<ManajemenPengaduanPage> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () {
-                      _updateComplaintStatus(docId, 'diproses');
+                      _updateComplaintStatus(vm, docId, 'diproses');
                       Navigator.pop(context);
                     },
                     style: ElevatedButton.styleFrom(
@@ -118,7 +114,7 @@ class _ManajemenPengaduanPageState extends State<ManajemenPengaduanPage> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () {
-                      _updateComplaintStatus(docId, 'selesai');
+                      _updateComplaintStatus(vm, docId, 'selesai');
                       Navigator.pop(context);
                     },
                     style: ElevatedButton.styleFrom(
@@ -171,10 +167,7 @@ class _ManajemenPengaduanPageState extends State<ManajemenPengaduanPage> {
 
   @override
   Widget build(BuildContext context) {
-    Query query = _firestore.collection('complaints');
-    if (_selectedStatusFilter != 'all') {
-      query = query.where('status', isEqualTo: _selectedStatusFilter);
-    }
+    final vm = context.watch<AdminViewModel>();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
@@ -183,7 +176,7 @@ class _ManajemenPengaduanPageState extends State<ManajemenPengaduanPage> {
           _buildFilterTabs(),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: query.snapshots(),
+              stream: vm.streamComplaints(_selectedStatusFilter),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator(color: AppColors.primary));
@@ -250,7 +243,7 @@ class _ManajemenPengaduanPageState extends State<ManajemenPengaduanPage> {
                         ],
                       ),
                       child: InkWell(
-                        onTap: () => _showDetailModal(data, doc.id),
+                        onTap: () => _showDetailModal(vm, data, doc.id),
                         borderRadius: BorderRadius.circular(20),
                         child: Padding(
                           padding: const EdgeInsets.all(20),

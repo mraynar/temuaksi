@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/app_colors.dart';
 import '../../../utils/pdf_generator.dart';
+import '../../../viewmodels/profile_viewmodel.dart';
 
-class SertifikatPage extends StatefulWidget {
+class SertifikatPage extends StatelessWidget {
   final String userName;
 
   const SertifikatPage({
@@ -14,15 +15,10 @@ class SertifikatPage extends StatefulWidget {
   });
 
   @override
-  State<SertifikatPage> createState() => _SertifikatPageState();
-}
-
-class _SertifikatPageState extends State<SertifikatPage> {
-  @override
   Widget build(BuildContext context) {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final vm = context.watch<ProfileViewModel>();
 
-    if (currentUser == null) {
+    if (vm.currentUid.isEmpty) {
       return const Scaffold(
         body: Center(
           child: CircularProgressIndicator(),
@@ -46,11 +42,7 @@ class _SertifikatPageState extends State<SertifikatPage> {
         ),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('proposals')
-            .where('user_id', isEqualTo: currentUser.uid)
-            .where('status', isEqualTo: 'selesai')
-            .snapshots(),
+        stream: vm.streamUserCertificates(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -158,7 +150,7 @@ class _SertifikatPageState extends State<SertifikatPage> {
                   ),
                   trailing: ElevatedButton(
                     onPressed: () {
-                      PdfGenerator.generateCertificate(widget.userName, eventName);
+                      PdfGenerator.generateCertificate(userName, eventName);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blueAccent,
