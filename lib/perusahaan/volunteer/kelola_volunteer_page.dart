@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+
+import '../../viewmodels/company_profile_viewmodel.dart';
 import '../../theme/app_colors.dart';
 import 'tambah_kegiatan_volunteer_page.dart';
 import 'edit_kegiatan_volunteer_page.dart';
@@ -16,11 +18,8 @@ class KelolaVolunteerPage extends StatefulWidget {
 
 class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
     with SingleTickerProviderStateMixin {
-  final User? _currentUser = FirebaseAuth.instance.currentUser;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
   late final TabController _tabController;
-  bool _showFab = true; // FAB only on Tab 0
+  bool _showFab = true;
 
   @override
   void initState() {
@@ -41,11 +40,11 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
 
   @override
   Widget build(BuildContext context) {
-    if (_currentUser == null) {
+    final vm = context.watch<CompanyProfileViewModel>();
+
+    if (vm.currentUid.isEmpty) {
       return const Scaffold(
-        body: Center(
-          child: Text("Silakan login terlebih dahulu."),
-        ),
+        body: Center(child: Text("Silakan login terlebih dahulu.")),
       );
     }
 
@@ -86,7 +85,8 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => const TambahKegiatanVolunteerPage()),
+                    builder: (_) =>
+                        const TambahKegiatanVolunteerPage()),
               ).then((_) => setState(() {})),
               backgroundColor: AppColors.primary,
               child: const Icon(Icons.add_rounded, color: Colors.white),
@@ -95,8 +95,8 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildKegiatanTab(),
-          _buildDaftarRelawanTab(),
+          _buildKegiatanTab(context, vm),
+          _buildDaftarRelawanTab(vm),
         ],
       ),
     );
@@ -104,13 +104,10 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
 
   // ── Tab 1: Kegiatan Volunteer ─────────────────────────────────────────────
 
-  Widget _buildKegiatanTab() {
-    final uid = _currentUser!.uid;
+  Widget _buildKegiatanTab(
+      BuildContext context, CompanyProfileViewModel vm) {
     return StreamBuilder<QuerySnapshot>(
-      stream: _firestore
-          .collection('volunteer_events')
-          .where('company_id', isEqualTo: uid)
-          .snapshots(),
+      stream: vm.streamVolunteerEvents(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -167,7 +164,8 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
                         color: Colors.white, size: 18),
                     label: Text("Buat Kegiatan",
                         style: GoogleFonts.plusJakartaSans(
-                            color: Colors.white, fontWeight: FontWeight.w700)),
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700)),
                   ),
                 ],
               ),
@@ -202,14 +200,16 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
                   color: Colors.red,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 28),
+                child: const Icon(Icons.delete_outline_rounded,
+                    color: Colors.white, size: 28),
               ),
               confirmDismiss: (direction) async {
                 return await showDialog<bool>(
                   context: context,
                   builder: (_) => AlertDialog(
                     title: const Text('Hapus Kegiatan?'),
-                    content: const Text('Kegiatan ini akan dihapus permanen dan tidak dapat dikembalikan.'),
+                    content: const Text(
+                        'Kegiatan ini akan dihapus permanen dan tidak dapat dikembalikan.'),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context, false),
@@ -217,20 +217,22 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
                       ),
                       TextButton(
                         onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Hapus', style: TextStyle(color: Colors.red)),
+                        child: const Text('Hapus',
+                            style: TextStyle(color: Colors.red)),
                       ),
                     ],
                   ),
                 );
               },
               onDismissed: (_) async {
-                await FirebaseFirestore.instance
-                    .collection('volunteer_events')
-                    .doc(docs[index].id)
-                    .delete();
+                final success =
+                    await vm.deleteVolunteerEvent(docs[index].id);
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Kegiatan berhasil dihapus')),
+                    SnackBar(
+                        content: Text(success
+                            ? 'Kegiatan berhasil dihapus'
+                            : vm.errorMessage ?? 'Gagal menghapus')),
                   );
                 }
               },
@@ -261,7 +263,6 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Cover photo
                       if (photoUrl.isNotEmpty)
                         Image.network(
                           photoUrl,
@@ -282,21 +283,20 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
                           width: double.infinity,
                           child: Icon(Icons.volunteer_activism_outlined,
                               size: 40,
-                              color: AppColors.primary.withValues(alpha: 0.4)),
+                              color:
+                                  AppColors.primary.withValues(alpha: 0.4)),
                         ),
-
                       Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Kategori chip
                             Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color:
-                                    AppColors.primary.withValues(alpha: 0.08),
+                                color: AppColors.primary
+                                    .withValues(alpha: 0.08),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -354,7 +354,8 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
                                     borderRadius: BorderRadius.circular(4),
                                     child: LinearProgressIndicator(
                                       value: kuota > 0
-                                          ? (pesertaCount / kuota).clamp(0.0, 1.0)
+                                          ? (pesertaCount / kuota)
+                                              .clamp(0.0, 1.0)
                                           : 0,
                                       minHeight: 5,
                                       backgroundColor: Colors.grey[200],
@@ -369,10 +370,14 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
                             const SizedBox(height: 6),
                             Row(
                               children: [
-                                Icon(Icons.swipe_left_outlined, size: 12, color: Colors.grey[300]),
+                                Icon(Icons.swipe_left_outlined,
+                                    size: 12, color: Colors.grey[300]),
                                 const SizedBox(width: 4),
-                                Text('Geser kiri untuk hapus · Tap untuk edit',
-                                    style: GoogleFonts.plusJakartaSans(fontSize: 10, color: Colors.grey[400])),
+                                Text(
+                                    'Geser kiri untuk hapus · Tap untuk edit',
+                                    style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 10,
+                                        color: Colors.grey[400])),
                               ],
                             ),
                           ],
@@ -389,15 +394,11 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
     );
   }
 
-  // ── Tab 2: Daftar Relawan (existing logic, preserved exactly) ─────────────
+  // ── Tab 2: Daftar Relawan ─────────────────────────────────────────────────
 
-  Widget _buildDaftarRelawanTab() {
-    final uid = _currentUser!.uid;
+  Widget _buildDaftarRelawanTab(CompanyProfileViewModel vm) {
     return StreamBuilder<QuerySnapshot>(
-      stream: _firestore
-          .collection('volunteer_events')
-          .where('company_id', isEqualTo: uid)
-          .snapshots(),
+      stream: vm.streamVolunteerEvents(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -444,8 +445,10 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
           itemBuilder: (context, index) {
             final actionDoc = docs[index];
             final data = actionDoc.data() as Map<String, dynamic>;
-            final String title = data['judul'] ?? data['title'] ?? 'Tanpa Judul';
-            final String category = data['kategori'] ?? data['category'] ?? 'Umum';
+            final String title =
+                data['judul'] ?? data['title'] ?? 'Tanpa Judul';
+            final String category =
+                data['kategori'] ?? data['category'] ?? 'Umum';
 
             return Container(
               margin: const EdgeInsets.only(bottom: 20),
@@ -492,11 +495,8 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
                   children: [
                     const Divider(height: 1, color: Color(0xFFE5E5EA)),
                     StreamBuilder<QuerySnapshot>(
-                      stream: _firestore
-                          .collection('volunteer_events')
-                          .doc(actionDoc.id)
-                          .collection('registrants')
-                          .snapshots(),
+                      stream:
+                          vm.streamEventRegistrants(actionDoc.id),
                       builder: (context, volSnapshot) {
                         if (volSnapshot.connectionState ==
                             ConnectionState.waiting) {
@@ -530,27 +530,33 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: volDocs.length,
-                          separatorBuilder: (context, idx) => const Divider(
-                              height: 1, color: Color(0xFFF2F2F7)),
+                          separatorBuilder: (context, idx) =>
+                              const Divider(
+                                  height: 1,
+                                  color: Color(0xFFF2F2F7)),
                           itemBuilder: (context, idx) {
                             final volData = volDocs[idx].data()
                                 as Map<String, dynamic>;
                             final String name =
-                                volData['nama_lengkap'] ?? 'Relawan TemuAksi';
-                            final String email = volData['email'] ?? '';
+                                volData['nama_lengkap'] ??
+                                    'Relawan TemuAksi';
+                            final String email =
+                                volData['email'] ?? '';
                             final Timestamp? registeredAt =
                                 volData['registered_at'] as Timestamp?;
-                            final String formattedDate = registeredAt != null
-                                ? DateFormat('dd MMM yyyy, HH:mm')
-                                    .format(registeredAt.toDate())
-                                : '-';
+                            final String formattedDate =
+                                registeredAt != null
+                                    ? DateFormat('dd MMM yyyy, HH:mm')
+                                        .format(registeredAt.toDate())
+                                    : '-';
 
                             return ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 8),
+                              contentPadding:
+                                  const EdgeInsets.symmetric(
+                                      horizontal: 20, vertical: 8),
                               leading: CircleAvatar(
-                                backgroundColor:
-                                    AppColors.primary.withValues(alpha: 0.1),
+                                backgroundColor: AppColors.primary
+                                    .withValues(alpha: 0.1),
                                 child: const Icon(Icons.person_rounded,
                                     color: AppColors.primary),
                               ),
@@ -563,7 +569,8 @@ class _KelolaVolunteerPageState extends State<KelolaVolunteerPage>
                                 ),
                               ),
                               subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
                                 children: [
                                   if (email.isNotEmpty)
                                     Text(
