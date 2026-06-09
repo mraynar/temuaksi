@@ -172,6 +172,7 @@ class ManagementAksiPage extends StatelessWidget {
 
   Widget _buildFirestoreActionList(
       BuildContext context, AksiViewModel vm) {
+    // The stream is self-contained and automatically managed via StreamBuilder
     return StreamBuilder<QuerySnapshot>(
       stream: vm.streamCompanyAksi(),
       builder: (context, snapshot) {
