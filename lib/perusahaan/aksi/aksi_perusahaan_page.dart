@@ -1,25 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
+import '../../viewmodels/aksi_viewmodel.dart';
 import '../../theme/app_colors.dart';
 import 'tambah_aksi_page.dart';
 import 'edit_aksi_page.dart';
 
-class ManagementAksiPage extends StatefulWidget {
+class ManagementAksiPage extends StatelessWidget {
   const ManagementAksiPage({super.key});
 
   @override
-  State<ManagementAksiPage> createState() => _ManagementAksiPageState();
-}
-
-class _ManagementAksiPageState extends State<ManagementAksiPage> {
-  final User? user = FirebaseAuth.instance.currentUser;
-
-  @override
   Widget build(BuildContext context) {
+    final vm = context.watch<AksiViewModel>();
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7), 
+      backgroundColor: const Color(0xFFF2F2F7),
       appBar: AppBar(
         backgroundColor: const Color(0xFFF2F2F7),
         elevation: 0,
@@ -36,7 +33,11 @@ class _ManagementAksiPageState extends State<ManagementAksiPage> {
         ),
         actions: [
           IconButton(
-            onPressed: () => _navigateToTambahAksi(),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => const TambahAksiPage()),
+            ),
             icon: const Icon(Icons.add_circle_outline_rounded,
                 color: AppColors.primary, size: 28),
           ),
@@ -53,7 +54,7 @@ class _ManagementAksiPageState extends State<ManagementAksiPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 16),
-                  _buildCreateActionCard(),
+                  _buildCreateActionCard(context),
                   const SizedBox(height: 32),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -82,22 +83,14 @@ class _ManagementAksiPageState extends State<ManagementAksiPage> {
               ),
             ),
           ),
-       
-          _buildFirestoreActionList(),
+          _buildFirestoreActionList(context, vm),
           const SliverToBoxAdapter(child: SizedBox(height: 40)),
         ],
       ),
     );
   }
 
-  void _navigateToTambahAksi() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const TambahAksiPage()),
-    );
-  }
-
-  Widget _buildCreateActionCard() {
+  Widget _buildCreateActionCard(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -151,7 +144,11 @@ class _ManagementAksiPageState extends State<ManagementAksiPage> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: () => _navigateToTambahAksi(),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const TambahAksiPage()),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.secondary,
                 foregroundColor: AppColors.primary,
@@ -173,13 +170,10 @@ class _ManagementAksiPageState extends State<ManagementAksiPage> {
     );
   }
 
-  Widget _buildFirestoreActionList() {
+  Widget _buildFirestoreActionList(
+      BuildContext context, AksiViewModel vm) {
     return StreamBuilder<QuerySnapshot>(
-     
-      stream: FirebaseFirestore.instance
-          .collection('actions')
-          .where('company_id', isEqualTo: user?.uid)
-          .snapshots(),
+      stream: vm.streamCompanyAksi(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const SliverToBoxAdapter(
@@ -260,11 +254,13 @@ class _ManagementAksiPageState extends State<ManagementAksiPage> {
                             'Aksi ini akan dihapus permanen dan tidak dapat dikembalikan.'),
                         actions: [
                           TextButton(
-                            onPressed: () => Navigator.pop(context, false),
+                            onPressed: () =>
+                                Navigator.pop(context, false),
                             child: const Text('Batal'),
                           ),
                           TextButton(
-                            onPressed: () => Navigator.pop(context, true),
+                            onPressed: () =>
+                                Navigator.pop(context, true),
                             child: const Text('Hapus',
                                 style: TextStyle(color: Colors.red)),
                           ),
@@ -273,14 +269,14 @@ class _ManagementAksiPageState extends State<ManagementAksiPage> {
                     );
                   },
                   onDismissed: (_) async {
-                    await FirebaseFirestore.instance
-                        .collection('actions')
-                        .doc(docs[index].id)
-                        .delete();
+                    final success = await vm.deleteAksi(docs[index].id);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Aksi berhasil dihapus')),
+                        SnackBar(
+                          content: Text(success
+                              ? 'Aksi berhasil dihapus'
+                              : vm.errorMessage ?? 'Gagal menghapus'),
+                        ),
                       );
                     }
                   },
@@ -290,17 +286,15 @@ class _ManagementAksiPageState extends State<ManagementAksiPage> {
                       MaterialPageRoute(
                         builder: (_) => EditAksiPage(
                           docId: docs[index].id,
-                          data: docs[index].data() as Map<String, dynamic>,
+                          data: data,
                         ),
                       ),
                     ),
                     child: StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('proposals')
-                          .where('action_id', isEqualTo: docs[index].id)
-                          .snapshots(),
+                      stream: vm.streamProposalCount(docs[index].id),
                       builder: (context, proposalSnapshot) {
-                        final count = proposalSnapshot.data?.docs.length ?? 0;
+                        final count =
+                            proposalSnapshot.data?.docs.length ?? 0;
                         return _buildActionItem(
                           data['title'] ?? 'Tanpa Judul',
                           data['category'] ?? 'Umum',
@@ -322,8 +316,7 @@ class _ManagementAksiPageState extends State<ManagementAksiPage> {
     );
   }
 
-  Widget _buildActionItem(
-      String title, String category, String stats,
+  Widget _buildActionItem(String title, String category, String stats,
       Color color, IconData icon, String photoUrl) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -342,7 +335,6 @@ class _ManagementAksiPageState extends State<ManagementAksiPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Cover photo
           photoUrl.isNotEmpty
               ? Image.network(
                   photoUrl,
@@ -352,13 +344,18 @@ class _ManagementAksiPageState extends State<ManagementAksiPage> {
                   errorBuilder: (_, __, ___) => Container(
                     height: 130,
                     color: color.withValues(alpha: 0.08),
-                    child: Center(child: Icon(icon, size: 40, color: color.withValues(alpha: 0.4))),
+                    child: Center(
+                        child: Icon(icon,
+                            size: 40,
+                            color: color.withValues(alpha: 0.4))),
                   ),
                 )
               : Container(
                   height: 130,
                   color: color.withValues(alpha: 0.08),
-                  child: Center(child: Icon(icon, size: 40, color: color.withValues(alpha: 0.4))),
+                  child: Center(
+                      child: Icon(icon,
+                          size: 40, color: color.withValues(alpha: 0.4))),
                 ),
           Padding(
             padding: const EdgeInsets.all(16),
@@ -368,8 +365,10 @@ class _ManagementAksiPageState extends State<ManagementAksiPage> {
                 Text(
                   category.toUpperCase(),
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 10, fontWeight: FontWeight.w800,
-                    color: color, letterSpacing: 0.8,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                    letterSpacing: 0.8,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -378,24 +377,28 @@ class _ManagementAksiPageState extends State<ManagementAksiPage> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.w800, fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
                     color: const Color(0xFF1C1C1E),
                   ),
                 ),
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    Icon(Icons.description_outlined, size: 14, color: Colors.grey[400]),
+                    Icon(Icons.description_outlined,
+                        size: 14, color: Colors.grey[400]),
                     const SizedBox(width: 4),
                     Text(
                       stats,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13, color: const Color(0xFF86868B),
+                        fontSize: 13,
+                        color: const Color(0xFF86868B),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const Spacer(),
-                    Icon(Icons.edit_outlined, size: 14, color: Colors.grey[400]),
+                    Icon(Icons.edit_outlined,
+                        size: 14, color: Colors.grey[400]),
                     const SizedBox(width: 4),
                     Text('Tap untuk edit',
                         style: GoogleFonts.plusJakartaSans(

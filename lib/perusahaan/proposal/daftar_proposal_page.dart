@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+
+import '../../viewmodels/daftar_proposal_viewmodel.dart';
 import '../../../theme/app_colors.dart';
 import '../../utils/pdf_generator.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class DaftarProposalPage extends StatefulWidget {
   const DaftarProposalPage({super.key});
@@ -14,41 +16,17 @@ class DaftarProposalPage extends StatefulWidget {
 }
 
 class _DaftarProposalPageState extends State<DaftarProposalPage> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final User? _currentUser = FirebaseAuth.instance.currentUser;
   String _selectedFilter = 'all';
-  bool _isFundingLoading = false;
 
-  Future<void> _updateStatus(String docId, String newStatus,
-      {int? danaDisetujui}) async {
-    try {
-      Map<String, dynamic> updateData = {'status': newStatus};
-      if (danaDisetujui != null) {
-        updateData['dana_disetujui'] = danaDisetujui;
-      }
-
-      await _firestore.collection('proposals').doc(docId).update(updateData);
-      _showSnackBar("Status berhasil diperbarui", AppColors.primary);
-    } catch (e) {
-      _showSnackBar("Gagal: $e", Colors.redAccent);
-    }
-  }
-
-  void _showSnackBar(String message, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message,
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
-        backgroundColor: color,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
-  void _showFundingModal(String docId, Map<String, dynamic> proposalData) {
+  void _showFundingModal(
+    BuildContext context,
+    DaftarProposalViewModel vm,
+    String docId,
+    Map<String, dynamic> proposalData,
+  ) {
     final int danaDiminta = proposalData['dana_diminta'] ?? 0;
-    final TextEditingController fundingController = TextEditingController();
+    final fundingController = TextEditingController();
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -63,7 +41,8 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
                 right: 25),
             decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
+                borderRadius:
+                    BorderRadius.vertical(top: Radius.circular(30))),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -79,7 +58,6 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
                 TextField(
                   controller: fundingController,
                   keyboardType: TextInputType.number,
-                  enabled: !_isFundingLoading,
                   decoration: InputDecoration(
                     hintText: "Masukkan nominal yang disetujui",
                     filled: true,
@@ -94,68 +72,37 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
                   width: double.infinity,
                   height: 55,
                   child: ElevatedButton(
-                    onPressed: _isFundingLoading
+                    onPressed: vm.isFundingLoading
                         ? null
                         : () async {
-                            if (fundingController.text.isNotEmpty) {
-                              final int danaDisetujui = int.parse(fundingController.text);
-                              if (danaDisetujui <= 0) return;
+                            final text = fundingController.text.trim();
+                            if (text.isEmpty) return;
+                            final int danaDisetujui =
+                                int.tryParse(text) ?? 0;
+                            if (danaDisetujui <= 0) return;
 
-                              setModalState(() => _isFundingLoading = true);
+                            final success = await vm.approveFunding(
+                              docId: docId,
+                              proposalData: proposalData,
+                              danaDisetujui: danaDisetujui,
+                            );
 
-                              try {
-                                final userRef = _firestore.collection('users').doc(_currentUser!.uid);
-                                final proposalRef = _firestore.collection('proposals').doc(docId);
-                                final transactionRef = _firestore.collection('transactions').doc();
-
-                                await _firestore.runTransaction((transaction) async {
-                                  final userSnapshot = await transaction.get(userRef);
-                                  if (!userSnapshot.exists) {
-                                    throw Exception("User tidak ditemukan");
-                                  }
-                                  final userData = userSnapshot.data() as Map<String, dynamic>;
-                                  final int currentSaldo = userData['saldo_csr'] ?? 0;
-
-                                  if (currentSaldo < danaDisetujui) {
-                                    throw Exception("Saldo CSR tidak mencukupi");
-                                  }
-
-                                  transaction.update(userRef, {
-                                    'saldo_csr': FieldValue.increment(-danaDisetujui),
-                                  });
-
-                                  transaction.update(proposalRef, {
-                                    'status': 'selesai',
-                                    'dana_disetujui': danaDisetujui,
-                                  });
-
-                                  transaction.set(transactionRef, {
-                                    'company_id': _currentUser.uid,
-                                    'proposal_id': docId,
-                                    'amount': danaDisetujui,
-                                    'type': 'pendanaan',
-                                    'status': 'success',
-                                    'created_at': FieldValue.serverTimestamp(),
-                                  });
-                                });
-
-                                // Generate MoU PDF dynamically
-                                final Map<String, dynamic> dataForMoU = {
+                            if (context.mounted) {
+                              if (success) {
+                                // Generate MoU PDF
+                                await PdfGenerator.generateMoU({
                                   ...proposalData,
                                   'dana_disetujui': danaDisetujui,
-                                };
-                                await PdfGenerator.generateMoU(dataForMoU);
-
-                                _showSnackBar("Pendanaan berhasil disetujui", AppColors.primary);
-
-                                if (mounted) {
-                                  Navigator.pop(context);
-                                }
-                              } catch (e) {
-                                final errorMsg = e.toString().replaceAll("Exception: ", "");
-                                _showSnackBar("Gagal memproses pendanaan: $errorMsg", Colors.redAccent);
-                              } finally {
-                                setModalState(() => _isFundingLoading = false);
+                                });
+                                Navigator.pop(context);
+                                _showSnackBar(
+                                    "Pendanaan berhasil disetujui",
+                                    AppColors.primary);
+                              } else {
+                                _showSnackBar(
+                                    vm.errorMessage ??
+                                        "Gagal memproses pendanaan",
+                                    Colors.redAccent);
                               }
                             }
                           },
@@ -164,15 +111,16 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(15)),
                         elevation: 0),
-                    child: _isFundingLoading
+                    child: vm.isFundingLoading
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                          )
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
                         : const Text("Selesaikan Pendanaan",
                             style: TextStyle(
-                                color: Colors.white, fontWeight: FontWeight.bold)),
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
@@ -183,10 +131,24 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
     );
   }
 
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message,
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<DaftarProposalViewModel>();
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7), 
+      backgroundColor: const Color(0xFFF2F2F7),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -202,21 +164,11 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
           _buildSegmentedFilter(),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: _selectedFilter == 'all'
-                  ? _firestore
-                      .collection('proposals')
-                      .where('perusahaan_id', isEqualTo: _currentUser?.uid)
-                      .snapshots()
-                  : _firestore
-                      .collection('proposals')
-                      .where('perusahaan_id', isEqualTo: _currentUser?.uid)
-                      .where('status', isEqualTo: _selectedFilter)
-                      .snapshots(),
+              stream: vm.streamCompanyProposals(
+                  statusFilter: _selectedFilter),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
+                  return const Center(child: CircularProgressIndicator());
                 }
 
                 if (snapshot.hasError) {
@@ -224,7 +176,8 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+                        const Icon(Icons.error_outline,
+                            color: Colors.redAccent, size: 48),
                         const SizedBox(height: 12),
                         Text(
                           "Gagal memuat data, coba lagi",
@@ -245,14 +198,17 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
                     ),
                   );
                 }
-                
-                final docs = List<DocumentSnapshot>.from(snapshot.data!.docs)
-                  ..sort((a, b) {
-                    final aT = (a.data() as Map)['created_at'] as Timestamp?;
-                    final bT = (b.data() as Map)['created_at'] as Timestamp?;
-                    if (aT == null || bT == null) return 0;
-                    return bT.compareTo(aT);
-                  });
+
+                final docs =
+                    List<DocumentSnapshot>.from(snapshot.data!.docs)
+                      ..sort((a, b) {
+                        final aT = (a.data() as Map)['created_at']
+                            as Timestamp?;
+                        final bT = (b.data() as Map)['created_at']
+                            as Timestamp?;
+                        if (aT == null || bT == null) return 0;
+                        return bT.compareTo(aT);
+                      });
 
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
@@ -280,7 +236,8 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
                               children: [
                                 _statusBadge(status),
                                 Text(
@@ -297,16 +254,20 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
                             const SizedBox(height: 12),
                             Text(data['nama_event'] ?? '-',
                                 style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 18, fontWeight: FontWeight.w800)),
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800)),
                             Text(data['lokasi'] ?? '-',
                                 style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 14, color: Colors.grey[600])),
+                                    fontSize: 14,
+                                    color: Colors.grey[600])),
                             const Divider(height: 30),
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
                               children: [
                                 Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
                                   children: [
                                     Text("Dana Diajukan",
                                         style: TextStyle(
@@ -320,7 +281,8 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
                                             color: AppColors.primary)),
                                   ],
                                 ),
-                                _buildActionButtons(docId, status, data),
+                                _buildActionButtons(
+                                    context, vm, docId, status, data),
                               ],
                             ),
                           ],
@@ -410,20 +372,38 @@ class _DaftarProposalPageState extends State<DaftarProposalPage> {
   }
 
   Widget _buildActionButtons(
-      String docId, String status, Map<String, dynamic> data) {
+    BuildContext context,
+    DaftarProposalViewModel vm,
+    String docId,
+    String status,
+    Map<String, dynamic> data,
+  ) {
     if (status == 'pending') {
       return Row(
         children: [
-          _iconAction(Icons.close_rounded, Colors.red,
-              () => _updateStatus(docId, 'ditolak')),
+          _iconAction(Icons.close_rounded, Colors.red, () async {
+            final success = await vm.updateProposalStatus(docId, 'ditolak');
+            if (context.mounted && !success) {
+              _showSnackBar(vm.errorMessage ?? "Gagal", Colors.redAccent);
+            }
+          }),
           const SizedBox(width: 10),
-          _iconAction(Icons.check_rounded, Colors.blue,
-              () => _updateStatus(docId, 'ditinjau')),
+          _iconAction(Icons.check_rounded, Colors.blue, () async {
+            final success =
+                await vm.updateProposalStatus(docId, 'ditinjau');
+            if (context.mounted) {
+              _showSnackBar(
+                  success
+                      ? "Status berhasil diperbarui"
+                      : vm.errorMessage ?? "Gagal",
+                  success ? AppColors.primary : Colors.redAccent);
+            }
+          }),
         ],
       );
     } else if (status == 'ditinjau') {
       return ElevatedButton(
-        onPressed: () => _showFundingModal(docId, data),
+        onPressed: () => _showFundingModal(context, vm, docId, data),
         style: ElevatedButton.styleFrom(
             backgroundColor: Colors.blue,
             elevation: 0,
