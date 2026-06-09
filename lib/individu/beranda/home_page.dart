@@ -1,7 +1,7 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+
+import '../../viewmodels/home_viewmodel.dart';
 import '../../theme/app_colors.dart';
 import '../explore/explore_page.dart';
 import '../profile/profile_page.dart';
@@ -14,42 +14,17 @@ class IndividuHomePage extends StatefulWidget {
 }
 
 class _IndividuHomePageState extends State<IndividuHomePage> {
-  final User? user = FirebaseAuth.instance.currentUser;
-  String _photoUrl = '';
-  int _points = 0;
-  StreamSubscription<DocumentSnapshot>? _userSubscription;
-
   @override
   void initState() {
     super.initState();
-    _loadUserPhoto();
-  }
-
-  @override
-  void dispose() {
-    _userSubscription?.cancel();
-    super.dispose();
-  }
-
-  void _loadUserPhoto() {
-    if (user != null) {
-      _userSubscription = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user!.uid)
-          .snapshots()
-          .listen((doc) {
-        if (doc.exists && mounted) {
-          setState(() {
-            _photoUrl = doc.data()?['photo_url'] ?? '';
-            _points = doc.data()?['points'] ?? doc.data()?['poin'] ?? 0;
-          });
-        }
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<HomeViewModel>().init();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<HomeViewModel>();
     final double topPadding = MediaQuery.of(context).padding.top;
 
     return Scaffold(
@@ -96,17 +71,19 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
                               decoration: BoxDecoration(
                                 color: Colors.white.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Row(
                                 children: [
-                                  const Icon(Icons.stars_rounded, color: AppColors.secondary, size: 16),
+                                  const Icon(Icons.stars_rounded,
+                                      color: AppColors.secondary, size: 16),
                                   const SizedBox(width: 4),
                                   Text(
-                                    "$_points Poin",
+                                    "${vm.points} Poin",
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 12,
@@ -121,17 +98,20 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                               onTap: () {
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => const IndividuProfilePage()),
+                                  MaterialPageRoute(
+                                      builder: (context) =>
+                                          const IndividuProfilePage()),
                                 );
                               },
                               child: CircleAvatar(
                                 radius: 20,
                                 backgroundColor:
                                     AppColors.tertiary.withValues(alpha: 0.3),
-                                backgroundImage: _photoUrl.isNotEmpty
-                                    ? NetworkImage(_photoUrl)
-                                    : null,
-                                child: _photoUrl.isEmpty
+                                backgroundImage:
+                                    (vm.user?.photoUrl ?? '').isNotEmpty
+                                        ? NetworkImage(vm.user!.photoUrl)
+                                        : null,
+                                child: (vm.user?.photoUrl ?? '').isEmpty
                                     ? const Icon(Icons.person_outline,
                                         color: Colors.white, size: 20)
                                     : null,
@@ -156,7 +136,9 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                               onTap: () {
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => const ExplorePage()),
+                                  MaterialPageRoute(
+                                      builder: (context) =>
+                                          const ExplorePage()),
                                 );
                               },
                               decoration: const InputDecoration(
@@ -177,7 +159,8 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                           onTap: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => const ExplorePage()),
+                              MaterialPageRoute(
+                                  builder: (context) => const ExplorePage()),
                             );
                           },
                           child: Container(
@@ -187,8 +170,8 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child:
-                                const Icon(Icons.tune, color: AppColors.primary),
+                            child: const Icon(Icons.tune,
+                                color: AppColors.primary),
                           ),
                         ),
                       ],
@@ -206,17 +189,17 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                 children: [
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: _buildPromotionBanner(),
+                    child: _buildPromotionBanner(context),
                   ),
                   const SizedBox(height: 25),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: _buildSectionHeader("Kategori Event"),
+                    child: _buildSectionHeader(context, "Kategori Event"),
                   ),
                   const SizedBox(height: 15),
-                  _buildCategoryList(),
+                  _buildCategoryList(context),
                   const SizedBox(height: 30),
-                  _buildCompanySection(),
+                  _buildCompanySection(context, vm),
                   const SizedBox(height: 100),
                 ],
               ),
@@ -227,7 +210,7 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
     );
   }
 
-  Widget _buildPromotionBanner() {
+  Widget _buildPromotionBanner(BuildContext context) {
     return Container(
       width: double.infinity,
       height: 150,
@@ -255,7 +238,8 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const ExplorePage()),
+                      MaterialPageRoute(
+                          builder: (context) => const ExplorePage()),
                     );
                   },
                   style: ElevatedButton.styleFrom(
@@ -267,8 +251,8 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                   ),
                   child: const Text("Explore Event",
-                      style:
-                          TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      style: TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -287,7 +271,7 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
     );
   }
 
-  Widget _buildCategoryList() {
+  Widget _buildCategoryList(BuildContext context) {
     final List<Map<String, dynamic>> categories = [
       {"name": "Teknologi", "img": "teknologi.png"},
       {"name": "Lingkungan", "img": "lingkungan.png"},
@@ -311,7 +295,8 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ExplorePage(initialCategory: cat['name']),
+                  builder: (context) =>
+                      ExplorePage(initialCategory: cat['name']),
                 ),
               );
             },
@@ -326,7 +311,8 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                     padding: const EdgeInsets.all(12),
                     decoration: const BoxDecoration(
                         color: AppColors.neutral, shape: BoxShape.circle),
-                    child: Image.asset('assets/images/beranda/${cat['img']}',
+                    child: Image.asset(
+                        'assets/images/beranda/${cat['img']}',
                         fit: BoxFit.contain),
                   ),
                   const SizedBox(height: 8),
@@ -336,7 +322,9 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 10, fontWeight: FontWeight.w600, height: 1.2),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        height: 1.2),
                   ),
                 ],
               ),
@@ -347,51 +335,40 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
     );
   }
 
-  Widget _buildCompanySection() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .where('role', isEqualTo: 'perusahaan')
-          .limit(10)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox(
-            height: 100,
-            child: Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            ),
-          );
-        }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const SizedBox();
-        }
-        final docs = snapshot.data!.docs;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _buildSectionHeader("Rekomendasi Perusahaan"),
-            ),
-            const SizedBox(height: 15),
-            _buildCompanyList(docs),
-          ],
-        );
-      },
+  Widget _buildCompanySection(BuildContext context, HomeViewModel vm) {
+    if (vm.isLoading) {
+      return const SizedBox(
+        height: 100,
+        child: Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
+    }
+    if (vm.companyList.isEmpty) return const SizedBox();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: _buildSectionHeader(context, "Rekomendasi Perusahaan"),
+        ),
+        const SizedBox(height: 15),
+        _buildCompanyList(context, vm),
+      ],
     );
   }
 
-  Widget _buildCompanyList(List<QueryDocumentSnapshot> docs) {
+  Widget _buildCompanyList(BuildContext context, HomeViewModel vm) {
     return SizedBox(
       height: 230,
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        itemCount: docs.length,
+        itemCount: vm.companyList.length,
         itemBuilder: (context, index) {
-          final doc = docs[index];
+          final doc = vm.companyList[index];
           final data = doc.data() as Map<String, dynamic>;
           final name = data['nama_lengkap'] ?? 'Nama Perusahaan';
           final industry = data['bidang_industri'] ?? 'Industri';
@@ -399,13 +376,15 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
           final photos = data['company_photos'] != null
               ? List<String>.from(data['company_photos'])
               : <String>[];
-          final String? firstPhoto = photos.isNotEmpty ? photos.first : null;
+          final String? firstPhoto =
+              photos.isNotEmpty ? photos.first : null;
 
           return GestureDetector(
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const ExplorePage()),
+                MaterialPageRoute(
+                    builder: (context) => const ExplorePage()),
               );
             },
             child: Container(
@@ -426,8 +405,8 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ClipRRect(
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(16)),
+                    borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(16)),
                     child: firstPhoto != null && firstPhoto.isNotEmpty
                         ? Image.network(
                             firstPhoto,
@@ -459,7 +438,8 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.1),
+                              color: AppColors.primary
+                                  .withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4)),
                           child: Text(industry,
                               style: const TextStyle(
@@ -470,7 +450,8 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                         const SizedBox(height: 8),
                         Text(name,
                             style: const TextStyle(
-                                fontSize: 13, fontWeight: FontWeight.bold),
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis),
                         const SizedBox(height: 4),
@@ -479,9 +460,14 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
                             const Icon(Icons.location_on,
                                 size: 12, color: Color(0xFF86868B)),
                             const SizedBox(width: 4),
-                            Text(address,
-                                style: const TextStyle(
-                                    fontSize: 11, color: Color(0xFF86868B))),
+                            Expanded(
+                              child: Text(address,
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Color(0xFF86868B)),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis),
+                            ),
                           ],
                         ),
                       ],
@@ -496,7 +482,7 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(BuildContext context, String title) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -509,7 +495,8 @@ class _IndividuHomePageState extends State<IndividuHomePage> {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const ExplorePage()),
+              MaterialPageRoute(
+                  builder: (context) => const ExplorePage()),
             );
           },
           child: const Text("Lihat semua",

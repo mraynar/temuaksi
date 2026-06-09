@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+
+import '../../viewmodels/home_viewmodel.dart';
 import '../../theme/app_colors.dart';
 import '../aksi/aksi_perusahaan_page.dart';
 import '../volunteer/kelola_volunteer_page.dart';
@@ -16,17 +18,40 @@ class CompanyHomePage extends StatefulWidget {
 }
 
 class _CompanyHomePageState extends State<CompanyHomePage> {
-  final User? user = FirebaseAuth.instance.currentUser;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
   final NumberFormat _currencyFormat = NumberFormat.currency(
     locale: 'id_ID',
     symbol: 'Rp ',
     decimalDigits: 0,
   );
 
+  // Keep StreamBuilders for live company-specific stats (not part of HomeViewModel scope)
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<HomeViewModel>().listenUserPoints();
+    });
+  }
+
+  void _showSnackBar(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg,
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+        behavior: SnackBarBehavior.floating,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<HomeViewModel>();
+    final uid = vm.currentUid;
+
     return Scaffold(
       backgroundColor: AppColors.neutral,
       body: CustomScrollView(
@@ -35,15 +60,16 @@ class _CompanyHomePageState extends State<CompanyHomePage> {
           _buildSliverAppBar(),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildBalanceCard(),
+                  _buildBalanceCard(vm),
                   const SizedBox(height: 25),
                   _buildSectionHeader("Ringkasan Aksi"),
                   const SizedBox(height: 20),
-                  _buildMainStats(),
+                  _buildMainStats(uid),
                   const SizedBox(height: 25),
                   _buildSectionHeader("Akses Cepat"),
                   const SizedBox(height: 20),
@@ -51,7 +77,7 @@ class _CompanyHomePageState extends State<CompanyHomePage> {
                   const SizedBox(height: 25),
                   _buildSectionHeader("Proposal Terbaru"),
                   const SizedBox(height: 20),
-                  _buildRecentProposals(),
+                  _buildRecentProposals(uid),
                   const SizedBox(height: 25),
                   _buildSectionHeader("Tips Strategi CSR"),
                   const SizedBox(height: 20),
@@ -88,14 +114,14 @@ class _CompanyHomePageState extends State<CompanyHomePage> {
     );
   }
 
-  Widget _buildBalanceCard() {
+  Widget _buildBalanceCard(HomeViewModel vm) {
+    // saldo_csr is company-specific, still needs live stream
     return StreamBuilder<DocumentSnapshot>(
-      stream: _firestore.collection('users').doc(user?.uid).snapshots(),
+      stream: _firestore.collection('users').doc(vm.currentUid).snapshots(),
       builder: (context, snapshot) {
         int currentBalance = 0;
-
         if (snapshot.hasData && snapshot.data!.exists) {
-          var data = snapshot.data!.data() as Map<String, dynamic>;
+          final data = snapshot.data!.data() as Map<String, dynamic>;
           currentBalance = data['saldo_csr'] ?? 0;
         }
 
@@ -172,14 +198,12 @@ class _CompanyHomePageState extends State<CompanyHomePage> {
     );
   }
 
-  Widget _buildMainStats() {
-    final uid = user?.uid;
+  Widget _buildMainStats(String uid) {
     return Row(
       children: [
-        // Aksi Aktif — live count
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: uid == null
+            stream: uid.isEmpty
                 ? const Stream.empty()
                 : _firestore
                     .collection('actions')
@@ -199,10 +223,9 @@ class _CompanyHomePageState extends State<CompanyHomePage> {
           ),
         ),
         const SizedBox(width: 12),
-        // Proposal masuk — live count
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: uid == null
+            stream: uid.isEmpty
                 ? const Stream.empty()
                 : _firestore
                     .collection('proposals')
@@ -260,23 +283,14 @@ class _CompanyHomePageState extends State<CompanyHomePage> {
     );
   }
 
-  void _showSnackBar(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
   Widget _buildQuickAccessGrid() {
     final items = [
       (
         "Manajemen Aksi",
         Icons.layers_outlined,
         AppColors.iris100,
-        () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ManagementAksiPage())),
+        () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const ManagementAksiPage())),
       ),
       (
         "Analisis Dampak",
@@ -288,7 +302,8 @@ class _CompanyHomePageState extends State<CompanyHomePage> {
         "Cari Volunteer",
         Icons.person_search_outlined,
         AppColors.success,
-        () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KelolaVolunteerPage())),
+        () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const KelolaVolunteerPage())),
       ),
       (
         "Pusat Bantuan",
@@ -354,16 +369,14 @@ class _CompanyHomePageState extends State<CompanyHomePage> {
               fontWeight: FontWeight.w800,
               color: const Color(0xFF1C1C1E)),
         ),
-        Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey[400]),
+        Icon(Icons.arrow_forward_ios_rounded,
+            size: 14, color: Colors.grey[400]),
       ],
     );
   }
 
-  Widget _buildRecentProposals() {
-    final uid = user?.uid;
-    if (uid == null) {
-      return const SizedBox.shrink();
-    }
+  Widget _buildRecentProposals(String uid) {
+    if (uid.isEmpty) return const SizedBox.shrink();
 
     return StreamBuilder<QuerySnapshot>(
       stream: _firestore
@@ -417,47 +430,48 @@ class _CompanyHomePageState extends State<CompanyHomePage> {
               child: GestureDetector(
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const DaftarProposalPage()),
+                  MaterialPageRoute(
+                      builder: (_) => const DaftarProposalPage()),
                 ),
                 child: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                        color: AppColors.neutral,
-                        borderRadius: BorderRadius.circular(12)),
-                    child: const Icon(Icons.insert_drive_file_outlined,
-                        color: AppColors.primary),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          judul,
-                          style: GoogleFonts.plusJakartaSans(
-                              fontWeight: FontWeight.w700, fontSize: 14),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          "Status: ${_capitalizeFirst(status)}",
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              color: statusColor,
-                              fontWeight: FontWeight.w600),
-                        ),
-                      ],
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                          color: AppColors.neutral,
+                          borderRadius: BorderRadius.circular(12)),
+                      child: const Icon(Icons.insert_drive_file_outlined,
+                          color: AppColors.primary),
                     ),
-                  ),
-                  const Icon(Icons.chevron_right_rounded,
-                      color: Color(0xFFC7C7CC)),
-                ],
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            judul,
+                            style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w700, fontSize: 14),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            "Status: ${_capitalizeFirst(status)}",
+                            style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: statusColor,
+                                fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded,
+                        color: Color(0xFFC7C7CC)),
+                  ],
+                ),
               ),
-              ), // close GestureDetector
             );
           }).toList(),
         );
@@ -474,11 +488,13 @@ class _CompanyHomePageState extends State<CompanyHomePage> {
       decoration: BoxDecoration(
         color: AppColors.tertiary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.tertiary.withValues(alpha: 0.3)),
+        border:
+            Border.all(color: AppColors.tertiary.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.lightbulb_outline_rounded, color: AppColors.primary),
+          const Icon(Icons.lightbulb_outline_rounded,
+              color: AppColors.primary),
           const SizedBox(width: 16),
           Expanded(
             child: Text(
