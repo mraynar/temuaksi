@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:provider/provider.dart';
 
 import 'firebase_options.dart';
 import 'screens/landing_page.dart';
@@ -13,6 +14,20 @@ import 'components/main_navigation.dart';
 import 'components/main_navigation_perusahaan.dart';
 import 'components/main_navigation_admin.dart';
 import 'auth/login_page.dart';
+
+// ViewModels — imported as they are created per commit
+import 'viewmodels/auth_viewmodel.dart';
+import 'viewmodels/register_viewmodel.dart';
+import 'viewmodels/home_viewmodel.dart';
+import 'viewmodels/explore_viewmodel.dart';
+import 'viewmodels/volunteer_viewmodel.dart';
+import 'viewmodels/proposal_viewmodel.dart';
+import 'viewmodels/profile_viewmodel.dart';
+import 'viewmodels/aksi_perusahaan_viewmodel.dart';
+import 'viewmodels/kegiatan_volunteer_viewmodel.dart';
+import 'viewmodels/proposal_perusahaan_viewmodel.dart';
+import 'viewmodels/profile_perusahaan_viewmodel.dart';
+import 'viewmodels/admin_viewmodel.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,32 +54,48 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'TemuAksi',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: Colors.white,
-        textTheme: GoogleFonts.plusJakartaSansTextTheme(),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0D1B4E),
-          primary: const Color(0xFF0D1B4E),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthViewModel()),
+        ChangeNotifierProvider(create: (_) => RegisterViewModel()),
+        ChangeNotifierProvider(create: (_) => HomeViewModel()),
+        ChangeNotifierProvider(create: (_) => ExploreViewModel()),
+        ChangeNotifierProvider(create: (_) => VolunteerViewModel()),
+        ChangeNotifierProvider(create: (_) => ProposalViewModel()),
+        ChangeNotifierProvider(create: (_) => ProfileViewModel()),
+        ChangeNotifierProvider(create: (_) => AksiPerusahaanViewModel()),
+        ChangeNotifierProvider(create: (_) => KegiatanVolunteerViewModel()),
+        ChangeNotifierProvider(create: (_) => ProposalPerusahaanViewModel()),
+        ChangeNotifierProvider(create: (_) => ProfilePerusahaanViewModel()),
+        ChangeNotifierProvider(create: (_) => AdminViewModel()),
+      ],
+      child: MaterialApp(
+        title: 'TemuAksi',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          useMaterial3: true,
+          scaffoldBackgroundColor: Colors.white,
+          textTheme: GoogleFonts.plusJakartaSansTextTheme(),
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF0D1B4E),
+            primary: const Color(0xFF0D1B4E),
+          ),
         ),
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('id', 'ID'),
+          Locale('en', 'US'),
+        ],
+        initialRoute: '/',
+        routes: {
+          '/': (context) => const AuthWrapper(),
+          '/login': (context) => const LoginPage(),
+        },
       ),
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [
-        Locale('id', 'ID'),
-        Locale('en', 'US'),
-      ],
-      initialRoute: '/',
-      routes: {
-        '/': (context) => const AuthWrapper(),
-        '/login': (context) => const LoginPage(),
-      },
     );
   }
 }
