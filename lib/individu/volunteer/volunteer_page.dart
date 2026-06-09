@@ -1,28 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+
+import '../../viewmodels/volunteer_viewmodel.dart';
 import '../../theme/app_colors.dart';
 import 'detail_volunteer_page.dart';
 
-class VolunteerPage extends StatefulWidget {
+class VolunteerPage extends StatelessWidget {
   const VolunteerPage({super.key});
 
   @override
-  State<VolunteerPage> createState() => _VolunteerPageState();
-}
-
-class _VolunteerPageState extends State<VolunteerPage> {
-  final User? _currentUser = FirebaseAuth.instance.currentUser;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  @override
   Widget build(BuildContext context) {
-    if (_currentUser == null) {
+    final vm = context.watch<VolunteerViewModel>();
+    final uid = vm.currentUid;
+
+    if (uid.isEmpty) {
       return const Scaffold(
         body: Center(
-          child: Text("Silakan login terlebih dahulu untuk mengakses halaman ini."),
+          child: Text(
+              "Silakan login terlebih dahulu untuk mengakses halaman ini."),
         ),
       );
     }
@@ -45,7 +43,7 @@ class _VolunteerPageState extends State<VolunteerPage> {
         ),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: _firestore.collection('volunteer_events').where('status', isEqualTo: 'Aktif').snapshots(),
+        stream: vm.streamVolunteerEvents(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -69,7 +67,8 @@ class _VolunteerPageState extends State<VolunteerPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.volunteer_activism_outlined, size: 64, color: Color(0xFFC7C7CC)),
+                  const Icon(Icons.volunteer_activism_outlined,
+                      size: 64, color: Color(0xFFC7C7CC)),
                   const SizedBox(height: 16),
                   Text(
                     "Belum ada kegiatan volunteer aktif",
@@ -91,8 +90,7 @@ class _VolunteerPageState extends State<VolunteerPage> {
             itemBuilder: (context, index) {
               return _VolunteerActionCard(
                 actionDoc: docs[index],
-                userId: _currentUser.uid,
-                userEmail: _currentUser.email ?? "",
+                vm: vm,
               );
             },
           );
@@ -102,22 +100,15 @@ class _VolunteerPageState extends State<VolunteerPage> {
   }
 }
 
-class _VolunteerActionCard extends StatefulWidget {
+class _VolunteerActionCard extends StatelessWidget {
   final DocumentSnapshot actionDoc;
-  final String userId;
-  final String userEmail;
+  final VolunteerViewModel vm;
 
   const _VolunteerActionCard({
     required this.actionDoc,
-    required this.userId,
-    required this.userEmail,
+    required this.vm,
   });
 
-  @override
-  State<_VolunteerActionCard> createState() => _VolunteerActionCardState();
-}
-
-class _VolunteerActionCardState extends State<_VolunteerActionCard> {
   IconData _getCategoryIcon(String category) {
     switch (category.toLowerCase()) {
       case 'teknologi':
@@ -138,7 +129,7 @@ class _VolunteerActionCardState extends State<_VolunteerActionCard> {
 
   @override
   Widget build(BuildContext context) {
-    final data = widget.actionDoc.data() as Map<String, dynamic>;
+    final data = actionDoc.data() as Map<String, dynamic>;
     final String title = data['judul'] ?? data['title'] ?? 'Tanpa Judul';
     final String category = data['kategori'] ?? data['category'] ?? 'Sosial';
     final String description = data['deskripsi'] ?? data['description'] ?? '';
@@ -169,7 +160,8 @@ class _VolunteerActionCardState extends State<_VolunteerActionCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(24)),
             child: photoUrl.isNotEmpty
                 ? Image.network(
                     photoUrl,
@@ -178,24 +170,24 @@ class _VolunteerActionCardState extends State<_VolunteerActionCard> {
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Container(
                       height: 160,
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       child: Center(
                         child: Icon(
                           _getCategoryIcon(category),
                           size: 50,
-                          color: AppColors.primary.withOpacity(0.3),
+                          color: AppColors.primary.withValues(alpha: 0.3),
                         ),
                       ),
                     ),
                   )
                 : Container(
                     height: 160,
-                    color: AppColors.primary.withOpacity(0.1),
+                    color: AppColors.primary.withValues(alpha: 0.1),
                     child: Center(
                       child: Icon(
                         _getCategoryIcon(category),
                         size: 50,
-                        color: AppColors.primary.withOpacity(0.3),
+                        color: AppColors.primary.withValues(alpha: 0.3),
                       ),
                     ),
                   ),
@@ -209,7 +201,8 @@ class _VolunteerActionCardState extends State<_VolunteerActionCard> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
                         color: AppColors.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
@@ -226,7 +219,8 @@ class _VolunteerActionCardState extends State<_VolunteerActionCard> {
                     ),
                     Row(
                       children: [
-                        const Icon(Icons.public_rounded, size: 14, color: Color(0xFF86868B)),
+                        const Icon(Icons.public_rounded,
+                            size: 14, color: Color(0xFF86868B)),
                         const SizedBox(width: 4),
                         Text(
                           scale,
@@ -263,7 +257,8 @@ class _VolunteerActionCardState extends State<_VolunteerActionCard> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    const Icon(Icons.people_alt_rounded, size: 16, color: Color(0xFF86868B)),
+                    const Icon(Icons.people_alt_rounded,
+                        size: 16, color: Color(0xFF86868B)),
                     const SizedBox(width: 8),
                     Text(
                       "Kuota: $pesertaCount / $kuota Terisi",
@@ -278,7 +273,8 @@ class _VolunteerActionCardState extends State<_VolunteerActionCard> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF86868B)),
+                    const Icon(Icons.calendar_today_rounded,
+                        size: 16, color: Color(0xFF86868B)),
                     const SizedBox(width: 8),
                     Text(
                       "$formattedDate, pukul $jamMulai",
@@ -297,16 +293,17 @@ class _VolunteerActionCardState extends State<_VolunteerActionCard> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('user_volunteers')
-                  .where('uid', isEqualTo: widget.userId)
-                  .where('volunteer_event_id', isEqualTo: widget.actionDoc.id)
-                  .snapshots(),
+              stream: vm.streamUserRegistration(actionDoc.id),
               builder: (context, snapshot) {
-                final userVolDoc = snapshot.data?.docs.isNotEmpty == true ? snapshot.data!.docs.first : null;
-
+                final userVolDoc = snapshot.data?.docs.isNotEmpty == true
+                    ? snapshot.data!.docs.first
+                    : null;
                 final bool isRegistered = userVolDoc != null;
-                final String status = isRegistered ? (userVolDoc.data() as Map<String, dynamic>)['status'] ?? 'sedang berjalan' : '';
+                final String status = isRegistered
+                    ? (userVolDoc.data()
+                            as Map<String, dynamic>)['status'] ??
+                        'sedang berjalan'
+                    : '';
 
                 String btnText = "Lihat Detail";
                 Color btnBgColor = AppColors.primary;
@@ -332,7 +329,8 @@ class _VolunteerActionCardState extends State<_VolunteerActionCard> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => DetailVolunteerPage(actionDoc: widget.actionDoc),
+                          builder: (context) =>
+                              DetailVolunteerPage(actionDoc: actionDoc),
                         ),
                       );
                     },
@@ -340,7 +338,8 @@ class _VolunteerActionCardState extends State<_VolunteerActionCard> {
                       backgroundColor: btnBgColor,
                       foregroundColor: btnTextColor,
                       elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
                     ),
                     child: Text(
                       btnText,
