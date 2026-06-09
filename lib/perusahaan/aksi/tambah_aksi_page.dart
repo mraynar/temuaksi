@@ -1,14 +1,12 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
 import '../../theme/app_colors.dart';
+import '../../viewmodels/aksi_viewmodel.dart';
 
 class CurrencyInputFormatter extends TextInputFormatter {
   @override
@@ -38,7 +36,6 @@ class TambahAksiPage extends StatefulWidget {
 
 class _TambahAksiPageState extends State<TambahAksiPage> {
   final _formKey = GlobalKey<FormState>();
-  final User? user = FirebaseAuth.instance.currentUser;
 
   String _selectedCategory = 'Teknologi';
   String _selectedScale = 'Nasional';
@@ -48,9 +45,6 @@ class _TambahAksiPageState extends State<TambahAksiPage> {
 
   bool _isLoading = false;
   File? _selectedImage;
-
-  final String cloudName = "dm4ua5rj6";
-  final String uploadPreset = "temu_aksi_preset";
 
   final _titleController = TextEditingController();
   final _minSponsorController = TextEditingController();
@@ -89,26 +83,6 @@ class _TambahAksiPageState extends State<TambahAksiPage> {
     }
   }
 
-  Future<String?> _uploadImage(File file) async {
-    final url = Uri.parse(
-        "https://api.cloudinary.com/v1_1/$cloudName/image/upload");
-    var request = http.MultipartRequest("POST", url);
-    request.fields['upload_preset'] = uploadPreset;
-    request.files.add(await http.MultipartFile.fromPath('file', file.path));
-    try {
-      var response = await request.send();
-      if (response.statusCode == 200) {
-        var responseData = await response.stream.toBytes();
-        var responseString = String.fromCharCodes(responseData);
-        var jsonRes = jsonDecode(responseString);
-        return jsonRes['secure_url'];
-      }
-    } catch (e) {
-      debugPrint("Cloudinary Error: $e");
-    }
-    return null;
-  }
-
   Future<void> _submitAksi() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -120,40 +94,37 @@ class _TambahAksiPageState extends State<TambahAksiPage> {
     setState(() => _isLoading = true);
 
     try {
-      String photoUrl = '';
-      if (_selectedImage != null) {
-        String? uploaded = await _uploadImage(_selectedImage!);
-        if (uploaded != null) photoUrl = uploaded;
-      }
-
-      await FirebaseFirestore.instance.collection('actions').add({
-        'company_id': user?.uid,
-        'title': _titleController.text.trim(),
-        'category': _selectedCategory,
-        'scale': _selectedScale,
-        'min_funding': _parseCurrency(_minSponsorController.text),
-        'max_funding': _parseCurrency(_maxSponsorController.text),
-        'start_date': _startDate,
-        'end_date': _endDate,
-        'criteria': _criteriaController.text.trim(),
-        'syarat_ketentuan': _syaratController.text.trim(),
-        'description': _descController.text.trim(),
-        'target_peserta': _pesertaController.text.trim(),
-        'respon_time': _responTimeController.text.trim(),
-        'photo_url': photoUrl,
-        'status': 'Aktif',
-        'proposal_count': 0,
-        'created_at': FieldValue.serverTimestamp(),
-      });
+      final vm = context.read<AksiViewModel>();
+      final success = await vm.addAksi(
+        title: _titleController.text.trim(),
+        category: _selectedCategory,
+        scale: _selectedScale,
+        minFunding: _parseCurrency(_minSponsorController.text),
+        maxFunding: _parseCurrency(_maxSponsorController.text),
+        startDate: _startDate!,
+        endDate: _endDate!,
+        criteria: _criteriaController.text.trim(),
+        syaratKetentuan: _syaratController.text.trim(),
+        description: _descController.text.trim(),
+        targetPeserta: _pesertaController.text.trim(),
+        responTime: _responTimeController.text.trim(),
+        imageFile: _selectedImage,
+      );
 
       if (!mounted) return;
 
-      _showSnackBar(
-        "Aksi berhasil dipublikasikan!",
-        AppColors.primary,
-      );
-
-      Navigator.pop(context);
+      if (success) {
+        _showSnackBar(
+          "Aksi berhasil dipublikasikan!",
+          AppColors.primary,
+        );
+        Navigator.pop(context);
+      } else {
+        _showSnackBar(
+          vm.errorMessage ?? "Gagal mempublikasikan aksi",
+          Colors.red,
+        );
+      }
     } catch (e) {
       _showSnackBar("Gagal mempublikasikan aksi: $e", Colors.red);
     } finally {
