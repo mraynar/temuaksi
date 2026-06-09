@@ -1,81 +1,239 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
+
+import '../../viewmodels/proposal_viewmodel.dart';
 import '../../../theme/app_colors.dart';
 import '../../utils/pdf_generator.dart';
 
-class RiwayatProposalPage extends StatefulWidget {
+class RiwayatProposalPage extends StatelessWidget {
   const RiwayatProposalPage({super.key});
 
   @override
-  State<RiwayatProposalPage> createState() => _RiwayatProposalPageState();
-}
+  Widget build(BuildContext context) {
+    final vm = context.watch<ProposalViewModel>();
 
-class _RiwayatProposalPageState extends State<RiwayatProposalPage> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF9F9FB),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: true,
+        title: Text(
+          "Kelola Proposal",
+          style: GoogleFonts.plusJakartaSans(
+            color: const Color(0xFF1D1D1F),
+            fontWeight: FontWeight.w800,
+            fontSize: 19,
+          ),
+        ),
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: vm.streamUserProposals(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const Center(child: Text("Terjadi kesalahan sistem"));
+          }
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+                child: CircularProgressIndicator(color: AppColors.primary));
+          }
 
-  Future<void> _deleteProposal(String docId) async {
-    bool confirm = await _showDeleteConfirmation();
+          final docs = snapshot.data?.docs ?? [];
+          if (docs.isEmpty) {
+            return Center(
+                child: Text("Tidak ada data proposal",
+                    style:
+                        GoogleFonts.plusJakartaSans(color: Colors.grey)));
+          }
+
+          // Sort in memory (newest first), avoids composite Firestore index
+          final sortedDocs = List<DocumentSnapshot>.from(docs)
+            ..sort((a, b) {
+              final aTime = (a.data() as Map<String, dynamic>)['created_at']
+                  as Timestamp?;
+              final bTime = (b.data() as Map<String, dynamic>)['created_at']
+                  as Timestamp?;
+              if (aTime == null && bTime == null) return 0;
+              if (aTime == null) return 1;
+              if (bTime == null) return -1;
+              return bTime.compareTo(aTime);
+            });
+
+          return SingleChildScrollView(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 15,
+                      offset: const Offset(0, 5))
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: DataTable(
+                  columnSpacing: 0,
+                  horizontalMargin: 16,
+                  dataRowMaxHeight: 70,
+                  headingRowColor: WidgetStateProperty.all(
+                      AppColors.primary.withValues(alpha: 0.05)),
+                  columns: [
+                    DataColumn(
+                        label:
+                            Expanded(child: _headerText("JUDUL EVENT"))),
+                    DataColumn(label: _headerText("DANA")),
+                    DataColumn(label: _headerText("AKSI")),
+                  ],
+                  rows: sortedDocs.map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return DataRow(
+                      cells: [
+                        DataCell(
+                          SizedBox(
+                            width:
+                                MediaQuery.of(context).size.width * 0.35,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(data['nama_event'] ?? '-',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.plusJakartaSans(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                        color: const Color(0xFF1D1D1F))),
+                                Text(data['lokasi'] ?? '-',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11,
+                                        color: Colors.grey[600])),
+                              ],
+                            ),
+                          ),
+                        ),
+                        DataCell(
+                          Text(
+                              "Rp${NumberFormat.compact(locale: 'id_ID').format(data['dana_diminta'])}",
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary,
+                                  fontSize: 13)),
+                        ),
+                        DataCell(
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              _tableActionButton(
+                                  Icons.visibility_outlined,
+                                  AppColors.primary,
+                                  () => _showDetailModal(context, data)),
+                              const SizedBox(width: 6),
+                              if (data['status']
+                                          ?.toString()
+                                          .toLowerCase() ==
+                                      'pending' ||
+                                  data['status'] == null)
+                                _tableActionButton(
+                                    Icons.edit_square,
+                                    Colors.blueAccent,
+                                    () =>
+                                        _showEditModal(context, vm, doc)),
+                              if (data['status']
+                                          ?.toString()
+                                          .toLowerCase() ==
+                                      'pending' ||
+                                  data['status'] == null)
+                                const SizedBox(width: 6),
+                              _tableActionButton(
+                                  Icons.delete_outline_rounded,
+                                  Colors.redAccent,
+                                  () => _deleteProposal(
+                                      context, vm, doc.id)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _deleteProposal(
+      BuildContext context, ProposalViewModel vm, String docId) async {
+    final confirm = await _showDeleteConfirmation(context);
     if (!confirm) return;
 
-    try {
-      await _firestore.collection('proposals').doc(docId).delete();
-      _showSnackBar("Data berhasil dihapus", Colors.black87);
-    } catch (e) {
-      _showSnackBar("Gagal menghapus: $e", Colors.redAccent);
+    final success = await vm.deleteProposal(docId);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            success ? "Data berhasil dihapus" : vm.errorMessage ?? "Gagal menghapus",
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: success ? Colors.black87 : Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
     }
   }
 
-  Future<bool> _showDeleteConfirmation() async {
-    return await showDialog(
+  Future<bool> _showDeleteConfirmation(BuildContext context) async {
+    return await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15)),
             title: Text("Hapus Data",
-                style:
-                    GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
-            content:
-                const Text("Apakah anda yakin ingin menghapus proposal ini?"),
+                style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.bold)),
+            content: const Text(
+                "Apakah anda yakin ingin menghapus proposal ini?"),
             actions: [
               TextButton(
                   onPressed: () => Navigator.pop(context, false),
                   child: const Text("Batal")),
               TextButton(
                   onPressed: () => Navigator.pop(context, true),
-                  child:
-                      const Text("Hapus", style: TextStyle(color: Colors.red))),
+                  child: const Text("Hapus",
+                      style: TextStyle(color: Colors.red))),
             ],
           ),
         ) ??
         false;
   }
 
-  void _showSnackBar(String message, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message,
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
-        backgroundColor: color,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
-
-  void _showEditModal(DocumentSnapshot doc) {
+  void _showEditModal(
+      BuildContext context, ProposalViewModel vm, DocumentSnapshot doc) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _ProposalFormModal(doc: doc),
+      builder: (context) => _ProposalFormModal(doc: doc, vm: vm),
     );
   }
 
-  void _showDetailModal(Map<String, dynamic> data) {
+  void _showDetailModal(
+      BuildContext context, Map<String, dynamic> data) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -114,23 +272,26 @@ class _RiwayatProposalPageState extends State<RiwayatProposalPage> {
                       height: 200,
                       width: double.infinity,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
+                      errorBuilder: (context, error, stackTrace) =>
+                          Container(
                         height: 200,
                         color: Colors.grey[200],
-                        child:
-                            const Icon(Icons.broken_image, color: Colors.grey),
+                        child: const Icon(Icons.broken_image,
+                            color: Colors.grey),
                       ),
                     ),
                   ),
                   const SizedBox(height: 20),
                   _buildDetailItem("Judul Event", data['nama_event']),
                   _buildDetailItem("Lokasi", data['lokasi']),
-                  _buildDetailItem("Dana Diminta",
+                  _buildDetailItem(
+                      "Dana Diminta",
                       "Rp ${NumberFormat.decimalPattern('id_ID').format(data['dana_diminta'])}"),
                   _buildDetailItem("Deskripsi", data['deskripsi']),
-                  _buildDetailItem(
-                      "Status", data['status']?.toString().toUpperCase()),
-                  if (data['status']?.toString().toLowerCase() == 'selesai') ...[
+                  _buildDetailItem("Status",
+                      data['status']?.toString().toUpperCase()),
+                  if (data['status']?.toString().toLowerCase() ==
+                      'selesai') ...[
                     const SizedBox(height: 20),
                     Row(
                       children: [
@@ -138,12 +299,18 @@ class _RiwayatProposalPageState extends State<RiwayatProposalPage> {
                           child: ElevatedButton.icon(
                             onPressed: () =>
                                 PdfGenerator.generateMoU(data),
-                            icon: const Icon(Icons.download_rounded, color: Colors.white, size: 18),
-                            label: Text("Unduh MoU", style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold)),
+                            icon: const Icon(Icons.download_rounded,
+                                color: Colors.white, size: 18),
+                            label: Text("Unduh MoU",
+                                style: GoogleFonts.plusJakartaSans(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primary,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 12),
                             ),
                           ),
                         ),
@@ -151,13 +318,21 @@ class _RiwayatProposalPageState extends State<RiwayatProposalPage> {
                         Expanded(
                           child: ElevatedButton.icon(
                             onPressed: () =>
-                                PdfGenerator.generateCertificate(data['user_name'] ?? 'Volunteer', data['nama_event'] ?? 'Kegiatan'),
-                            icon: const Icon(Icons.card_membership, color: Colors.white, size: 18),
-                            label: Text("Sertifikat", style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold)),
+                                PdfGenerator.generateCertificate(
+                                    data['user_name'] ?? 'Volunteer',
+                                    data['nama_event'] ?? 'Kegiatan'),
+                            icon: const Icon(Icons.card_membership,
+                                color: Colors.white, size: 18),
+                            label: Text("Sertifikat",
+                                style: GoogleFonts.plusJakartaSans(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.blueAccent,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 12),
                             ),
                           ),
                         ),
@@ -195,151 +370,6 @@ class _RiwayatProposalPageState extends State<RiwayatProposalPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9F9FB),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        centerTitle: true,
-        title: Text(
-          "Kelola Proposal",
-          style: GoogleFonts.plusJakartaSans(
-            color: const Color(0xFF1D1D1F),
-            fontWeight: FontWeight.w800,
-            fontSize: 19,
-          ),
-        ),
-      ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _firestore
-            .collection('proposals')
-            .where('user_id', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError)
-            return const Center(child: Text("Terjadi kesalahan sistem"));
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-                child: CircularProgressIndicator(color: AppColors.primary));
-          }
-
-          final docs = snapshot.data?.docs ?? [];
-          if (docs.isEmpty) {
-            return Center(
-                child: Text("Tidak ada data proposal",
-                    style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
-          }
-
-          // Sort in memory to avoid needing composite index in Firestore
-          final sortedDocs = List<DocumentSnapshot>.from(docs)
-            ..sort((a, b) {
-              final aTime = (a.data() as Map<String, dynamic>)['created_at'] as Timestamp?;
-              final bTime = (b.data() as Map<String, dynamic>)['created_at'] as Timestamp?;
-              if (aTime == null && bTime == null) return 0;
-              if (aTime == null) return 1;
-              if (bTime == null) return -1;
-              return bTime.compareTo(aTime);
-            });
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 15,
-                      offset: const Offset(0, 5))
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(18),
-                child: DataTable(
-                  columnSpacing: 0,
-                  horizontalMargin: 16,
-                  dataRowMaxHeight: 70,
-                  headingRowColor: WidgetStateProperty.all(
-                      AppColors.primary.withValues(alpha: 0.05)),
-                  columns: [
-                    DataColumn(
-                        label: Expanded(child: _headerText("JUDUL EVENT"))),
-                    DataColumn(label: _headerText("DANA")),
-                    DataColumn(label: _headerText("AKSI")),
-                  ],
-                  rows: sortedDocs.map((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    return DataRow(
-                      cells: [
-                        DataCell(
-                          SizedBox(
-                            width: MediaQuery.of(context).size.width * 0.35,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(data['nama_event'] ?? '-',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.plusJakartaSans(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                        color: const Color(0xFF1D1D1F))),
-                                Text(data['lokasi'] ?? '-',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 11, color: Colors.grey[600])),
-                              ],
-                            ),
-                          ),
-                        ),
-                        DataCell(
-                          Text(
-                              "Rp${NumberFormat.compact(locale: 'id_ID').format(data['dana_diminta'])}",
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.primary,
-                                  fontSize: 13)),
-                        ),
-                        DataCell(
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              _tableActionButton(
-                                  Icons.visibility_outlined,
-                                  AppColors.primary,
-                                  () => _showDetailModal(data)),
-                              const SizedBox(width: 6),
-                              if (data['status']?.toString().toLowerCase() == 'pending' || data['status'] == null)
-                                _tableActionButton(Icons.edit_square,
-                                    Colors.blueAccent, () => _showEditModal(doc)),
-                              if (data['status']?.toString().toLowerCase() == 'pending' || data['status'] == null)
-                                const SizedBox(width: 6),
-                              _tableActionButton(
-                                  Icons.delete_outline_rounded,
-                                  Colors.redAccent,
-                                  () => _deleteProposal(doc.id)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  }).toList(),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   Widget _headerText(String text) {
     return Text(text,
         style: GoogleFonts.plusJakartaSans(
@@ -349,7 +379,8 @@ class _RiwayatProposalPageState extends State<RiwayatProposalPage> {
             letterSpacing: 0.5));
   }
 
-  Widget _tableActionButton(IconData icon, Color color, VoidCallback onTap) {
+  Widget _tableActionButton(
+      IconData icon, Color color, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -363,9 +394,13 @@ class _RiwayatProposalPageState extends State<RiwayatProposalPage> {
   }
 }
 
+// ─── Edit Modal ──────────────────────────────────────────────────────────────
+
 class _ProposalFormModal extends StatefulWidget {
   final DocumentSnapshot doc;
-  const _ProposalFormModal({required this.doc});
+  final ProposalViewModel vm;
+
+  const _ProposalFormModal({required this.doc, required this.vm});
 
   @override
   State<_ProposalFormModal> createState() => _ProposalFormModalState();
@@ -377,7 +412,6 @@ class _ProposalFormModalState extends State<_ProposalFormModal> {
   late TextEditingController _descController;
   late TextEditingController _danaController;
   DateTime? _selectedDate;
-  bool _isSaving = false;
 
   @override
   void initState() {
@@ -396,30 +430,36 @@ class _ProposalFormModalState extends State<_ProposalFormModal> {
 
   Future<void> _updateData() async {
     if (_nameController.text.isEmpty || _danaController.text.isEmpty) return;
-    setState(() => _isSaving = true);
-    try {
-      int danaMurni = int.parse(_danaController.text.replaceAll('.', ''));
-      await FirebaseFirestore.instance
-          .collection('proposals')
-          .doc(widget.doc.id)
-          .update({
-        'nama_event': _nameController.text.trim(),
-        'lokasi': _locController.text.trim(),
-        'deskripsi': _descController.text.trim(),
-        'dana_diminta': danaMurni,
-        'tanggal_event':
-            _selectedDate != null ? Timestamp.fromDate(_selectedDate!) : null,
-      });
-      if (mounted) Navigator.pop(context);
-    } catch (e) {
-      debugPrint("Error: $e");
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
+    final int danaMurni =
+        int.parse(_danaController.text.replaceAll('.', ''));
+
+    final success = await widget.vm.updateProposal(
+      docId: widget.doc.id,
+      namaEvent: _nameController.text.trim(),
+      lokasi: _locController.text.trim(),
+      deskripsi: _descController.text.trim(),
+      danaDiminta: danaMurni,
+      tanggalEvent: _selectedDate,
+    );
+
+    if (mounted) {
+      if (success) {
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(widget.vm.errorMessage ?? "Gagal memperbarui"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<ProposalViewModel>();
+
     return Container(
       padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom + 20,
@@ -449,24 +489,26 @@ class _ProposalFormModalState extends State<_ProposalFormModal> {
             _buildField("Judul Event", _nameController),
             _buildField("Lokasi", _locController),
             _buildField("Deskripsi", _descController, maxLines: 3),
-            _buildField("Dana Diajukan (Rp)", _danaController, isNumber: true),
+            _buildField("Dana Diajukan (Rp)", _danaController,
+                isNumber: true),
             _buildDatePicker(),
             const SizedBox(height: 30),
             SizedBox(
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-                onPressed: _isSaving ? null : _updateData,
+                onPressed: vm.isSaving ? null : _updateData,
                 style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(15)),
                     elevation: 0),
-                child: _isSaving
+                child: vm.isSaving
                     ? const CircularProgressIndicator(color: Colors.white)
                     : Text("Perbarui Data",
                         style: GoogleFonts.plusJakartaSans(
-                            fontWeight: FontWeight.w700, color: Colors.white)),
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white)),
               ),
             ),
             const SizedBox(height: 10),
@@ -492,7 +534,11 @@ class _ProposalFormModalState extends State<_ProposalFormModal> {
           TextField(
             controller: controller,
             maxLines: maxLines,
-            keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+            keyboardType:
+                isNumber ? TextInputType.number : TextInputType.text,
+            inputFormatters: isNumber
+                ? [FilteringTextInputFormatter.digitsOnly]
+                : null,
             style: GoogleFonts.plusJakartaSans(
                 fontSize: 15, fontWeight: FontWeight.w600),
             decoration: InputDecoration(
@@ -543,7 +589,8 @@ class _ProposalFormModalState extends State<_ProposalFormModal> {
                         : DateFormat('dd/MM/yyyy').format(_selectedDate!),
                     style: GoogleFonts.plusJakartaSans(
                         fontSize: 15, fontWeight: FontWeight.w600)),
-                const Icon(Icons.calendar_month, color: Colors.grey, size: 20),
+                const Icon(Icons.calendar_month,
+                    color: Colors.grey, size: 20),
               ],
             ),
           ),

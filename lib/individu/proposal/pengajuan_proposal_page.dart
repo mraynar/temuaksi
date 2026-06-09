@@ -1,14 +1,13 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:http_parser/http_parser.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+
+import '../../viewmodels/proposal_viewmodel.dart';
 import '../../theme/app_colors.dart';
 import '../riwayat/riwayat_proposal_page.dart';
 
@@ -49,10 +48,6 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
   DateTime? _selectedDate;
   File? _proposalFile;
   String? _proposalFileName;
-  bool _isLoading = false;
-
-  final String cloudName = "dm4ua5rj6";
-  final String uploadPreset = "temu_aksi_preset";
 
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
@@ -67,48 +62,7 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
     }
   }
 
-  Future<String?> _uploadToCloudinary(File file) async {
-    final url =
-        Uri.parse("https://api.cloudinary.com/v1_1/$cloudName/raw/upload");
-    var request = http.MultipartRequest("POST", url);
-    request.fields['upload_preset'] = uploadPreset;
-
-    final filename = file.path.split('/').last;
-    final ext = filename.split('.').last.toLowerCase();
-    MediaType contentType;
-
-    if (ext == 'zip') {
-      contentType = MediaType('application', 'zip');
-    } else if (ext == 'pdf') {
-      contentType = MediaType('application', 'pdf');
-    } else if (ext == 'doc') {
-      contentType = MediaType('application', 'msword');
-    } else if (ext == 'docx') {
-      contentType = MediaType('application',
-          'vnd.openxmlformats-officedocument.wordprocessingml.document');
-    } else {
-      contentType = MediaType('application', 'octet-stream');
-    }
-
-    request.files.add(await http.MultipartFile.fromPath(
-      'file', file.path, filename: filename, contentType: contentType,
-    ));
-
-    try {
-      var streamedResponse = await request.send();
-      var response = await http.Response.fromStream(streamedResponse);
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body)['secure_url'];
-      } else {
-        debugPrint("Cloudinary Error: ${response.statusCode} ${response.body}");
-      }
-    } catch (e) {
-      debugPrint("Cloudinary Error: $e");
-    }
-    return null;
-  }
-
-  Future<void> _submitProposal() async {
+  Future<void> _submitProposal(ProposalViewModel vm) async {
     if (!_formKey.currentState!.validate() ||
         _proposalFile == null ||
         _selectedDate == null) {
@@ -117,68 +71,33 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    final actionData = widget.actionDoc.data() as Map<String, dynamic>;
+    final int danaMurni =
+        int.parse(_danaController.text.replaceAll('.', ''));
 
-    try {
-      final User? currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser == null) throw Exception("User tidak terautentikasi");
+    final success = await vm.submitProposal(
+      actionId: widget.actionDoc.id,
+      perusahaanId: (actionData['company_id'] ?? '').toString(),
+      actionTitle:
+          (actionData['title'] ?? actionData['judul'] ?? 'Tanpa Judul')
+              .toString(),
+      namaEvent: _namaEventController.text.trim(),
+      deskripsi: _deskripsiController.text.trim(),
+      lokasi: _lokasiController.text.trim(),
+      tanggalEvent: _selectedDate!,
+      danaDiminta: danaMurni,
+      proposalFile: _proposalFile!,
+    );
 
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser.uid)
-          .get();
-
-      final String userName = userDoc.exists
-          ? (userDoc.data()?['nama_lengkap'] ?? userDoc.data()?['name'] ?? 'Relawan TemuAksi')
-          : 'Relawan TemuAksi';
-
-      final actionData = widget.actionDoc.data() as Map<String, dynamic>;
-      final String perusahaanId = actionData['company_id'] ?? '';
-
-      String? imageUrl = await _uploadToCloudinary(_proposalFile!);
-      if (imageUrl == null) throw Exception("Gagal mengunggah file proposal");
-
-      int danaMurni = int.parse(_danaController.text.replaceAll('.', ''));
-
-      await FirebaseFirestore.instance.collection('proposals').add({
-        'user_id': currentUser.uid,
-        'user_name': userName,
-        'user_email': currentUser.email ?? '',
-        'action_id': widget.actionDoc.id,
-        'perusahaan_id': perusahaanId,
-        'action_title': widget.actionDoc['title'] ?? widget.actionDoc['judul'] ?? 'Tanpa Judul',
-        'nama_event': _namaEventController.text.trim(),
-        'deskripsi': _deskripsiController.text.trim(),
-        'lokasi': _lokasiController.text.trim(),
-        'tanggal_event':
-            _selectedDate != null ? Timestamp.fromDate(_selectedDate!) : null,
-        'dana_diminta': danaMurni,
-        'file_url': imageUrl,
-        'status': 'pending',
-        'created_at': FieldValue.serverTimestamp(),
-      });
-
-      try {
-        await FirebaseFirestore.instance
-            .collection('actions')
-            .doc(widget.actionDoc.id)
-            .update({'proposal_count': FieldValue.increment(1)});
-      } catch (e) {
-        debugPrint("Gagal update proposal_count: $e");
-      }
-
-      if (mounted) {
-        _showSnackBar("Proposal berhasil dikirim!", AppColors.primary);
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const RiwayatProposalPage()),
-        );
-      }
-    } catch (e) {
-      _showSnackBar("Terjadi kesalahan: $e", Colors.red);
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+    if (!mounted) return;
+    if (success) {
+      _showSnackBar("Proposal berhasil dikirim!", AppColors.primary);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const RiwayatProposalPage()),
+      );
+    } else {
+      _showSnackBar(vm.errorMessage ?? "Terjadi kesalahan", Colors.red);
     }
   }
 
@@ -193,6 +112,8 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
 
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<ProposalViewModel>();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
       appBar: AppBar(
@@ -247,7 +168,7 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
               ),
             ),
           ),
-          _buildBottomButton(),
+          _buildBottomButton(vm),
         ],
       ),
     );
@@ -288,7 +209,8 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
                         color: _selectedDate == null
                             ? Colors.grey
                             : Colors.black)),
-                const Icon(Icons.calendar_today, color: Colors.grey, size: 20),
+                const Icon(Icons.calendar_today,
+                    color: Colors.grey, size: 20),
               ],
             ),
           ),
@@ -316,7 +238,10 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
           maxLines: maxLines,
           keyboardType: keyboardType,
           inputFormatters: isRupiah
-              ? [FilteringTextInputFormatter.digitsOnly, RupiahInputFormatter()]
+              ? [
+                  FilteringTextInputFormatter.digitsOnly,
+                  RupiahInputFormatter()
+                ]
               : null,
           style: GoogleFonts.plusJakartaSans(fontSize: 15),
           decoration: InputDecoration(
@@ -394,7 +319,8 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
                       const SizedBox(height: 8),
                       Text("Tap to select file",
                           style: GoogleFonts.plusJakartaSans(
-                              color: Colors.grey, fontWeight: FontWeight.w600)),
+                              color: Colors.grey,
+                              fontWeight: FontWeight.w600)),
                       const SizedBox(height: 4),
                       Text("Supported formats: ZIP, PDF, DOC, DOCX",
                           style: GoogleFonts.plusJakartaSans(
@@ -407,7 +333,7 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
     );
   }
 
-  Widget _buildBottomButton() {
+  Widget _buildBottomButton(ProposalViewModel vm) {
     return Positioned(
       bottom: 0,
       left: 0,
@@ -422,13 +348,13 @@ class _PengajuanProposalPageState extends State<PengajuanProposalPage> {
           width: double.infinity,
           height: 56,
           child: ElevatedButton(
-            onPressed: _isLoading ? null : _submitProposal,
+            onPressed: vm.isLoading ? null : () => _submitProposal(vm),
             style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16)),
                 elevation: 0),
-            child: _isLoading
+            child: vm.isLoading
                 ? const CircularProgressIndicator(color: Colors.white)
                 : Text("Kirim",
                     style: GoogleFonts.plusJakartaSans(
