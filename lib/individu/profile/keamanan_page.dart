@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+
+import '../../viewmodels/profile_viewmodel.dart';
 import '../../theme/app_colors.dart';
 
 class SecurityPage extends StatefulWidget {
@@ -16,141 +17,92 @@ class _SecurityPageState extends State<SecurityPage> {
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  bool _isLoading = false;
   bool _obscureCurrent = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
 
-  String _getFirebaseErrorMessage(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'wrong-password':
-        return "Kata sandi saat ini salah.";
-      case 'weak-password':
-        return "Kata sandi terlalu lemah (minimal 6 karakter).";
-      case 'requires-recent-login':
-        return "Sesi telah berakhir demi keamanan. Silakan login ulang untuk melanjutkan.";
-      case 'network-request-failed':
-        return "Koneksi internet bermasalah. Periksa jaringan Anda.";
-      case 'too-many-requests':
-        return "Terlalu banyak percobaan. Silakan coba lagi nanti.";
-      default:
-        return e.message ?? "Terjadi kesalahan sistem.";
-    }
-  }
-
-  Future<void> _changePassword() async {
+  Future<void> _changePassword(ProfileViewModel vm) async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
-    try {
-      User? user = FirebaseAuth.instance.currentUser;
-      if (user == null)
-        throw FirebaseAuthException(
-            code: 'no-user', message: 'User tidak ditemukan');
+    final success = await vm.changePassword(
+      currentPassword: _currentPasswordController.text,
+      newPassword: _newPasswordController.text,
+    );
 
-      AuthCredential credential = EmailAuthProvider.credential(
-        email: user.email!,
-        password: _currentPasswordController.text,
-      );
-
-      await user.reauthenticateWithCredential(credential);
-      await user.updatePassword(_newPasswordController.text);
-
-      if (!mounted) return;
-
-      _showSnackBar("Kata sandi berhasil diperbarui", AppColors.primary);
-
-      Navigator.pop(context);
-    } on FirebaseAuthException catch (e) {
-      _showSnackBar(_getFirebaseErrorMessage(e), AppColors.error);
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+    if (!mounted) return;
+    _showSnackBar(
+      success ? vm.successMessage! : vm.errorMessage ?? "Terjadi kesalahan",
+      success ? AppColors.primary : AppColors.error,
+    );
+    if (success) Navigator.pop(context);
   }
 
-  Future<void> _deleteAccount() async {
-    bool confirm = await _showConfirmDialog(
+  Future<void> _deleteAccount(ProfileViewModel vm) async {
+    final confirm = await _showConfirmDialog(
       "Hapus Akun",
       "Apakah Anda yakin ingin menghapus akun secara permanen? Seluruh data Anda akan hilang.",
       "Hapus Akun",
       AppColors.error,
     );
 
-    if (confirm && mounted) {
-      TextEditingController reAuthPass = TextEditingController();
-      bool reAuth = await showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text("Konfirmasi Keamanan",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text("Masukkan kata sandi Anda untuk menghapus akun."),
-              const SizedBox(height: 16),
-              TextField(
-                controller: reAuthPass,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  hintText: "Kata Sandi",
-                  border: OutlineInputBorder(),
+    if (!confirm || !mounted) return;
+
+    final TextEditingController reAuthPass = TextEditingController();
+    final bool reAuth = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text("Konfirmasi Keamanan",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text("Masukkan kata sandi Anda untuk menghapus akun."),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: reAuthPass,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    hintText: "Kata Sandi",
+                    border: OutlineInputBorder(),
+                  ),
                 ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text("Batal")),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.error),
+                child: const Text("Hapus Permanen",
+                    style: TextStyle(color: Colors.white)),
               ),
             ],
           ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text("Batal")),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-              child: const Text("Hapus Permanen",
-                  style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      );
+        ) ??
+        false;
 
-      if (reAuth == true && reAuthPass.text.isNotEmpty) {
-        setState(() => _isLoading = true);
-        try {
-          User? user = FirebaseAuth.instance.currentUser;
-          if (user == null) return;
+    if (!reAuth || reAuthPass.text.isEmpty) return;
 
-          AuthCredential credential = EmailAuthProvider.credential(
-            email: user.email!,
-            password: reAuthPass.text,
-          );
+    final success = await vm.deleteAccount(reAuthPass.text);
 
-          await user.reauthenticateWithCredential(credential);
-
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .delete();
-
-          await user.delete();
-
-          if (!mounted) return;
-
-          _showSnackBar(
-              "Akun Anda telah dihapus secara permanen.", Colors.black);
-
-          Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-        } on FirebaseAuthException catch (e) {
-          if (!mounted) return;
-          _showSnackBar(_getFirebaseErrorMessage(e), AppColors.error);
-        } finally {
-          if (mounted) setState(() => _isLoading = false);
-        }
-      }
+    if (!mounted) return;
+    _showSnackBar(
+      success
+          ? "Akun Anda telah dihapus secara permanen."
+          : vm.errorMessage ?? "Gagal menghapus akun",
+      success ? Colors.black : AppColors.error,
+    );
+    if (success) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
     }
   }
 
   Future<bool> _showConfirmDialog(
       String title, String content, String confirmText, Color color) async {
-    return await showDialog(
+    return await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: Text(title,
@@ -181,6 +133,8 @@ class _SecurityPageState extends State<SecurityPage> {
 
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<ProfileViewModel>();
+
     return Scaffold(
       backgroundColor: AppColors.neutral,
       appBar: AppBar(
@@ -218,8 +172,11 @@ class _SecurityPageState extends State<SecurityPage> {
                   _obscureCurrent,
                   (val) => setState(() => _obscureCurrent = val)),
               const SizedBox(height: 16),
-              _buildPasswordField("Kata Sandi Baru", _newPasswordController,
-                  _obscureNew, (val) => setState(() => _obscureNew = val)),
+              _buildPasswordField(
+                  "Kata Sandi Baru",
+                  _newPasswordController,
+                  _obscureNew,
+                  (val) => setState(() => _obscureNew = val)),
               const SizedBox(height: 16),
               _buildPasswordField(
                   "Konfirmasi Kata Sandi Baru",
@@ -232,14 +189,15 @@ class _SecurityPageState extends State<SecurityPage> {
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _changePassword,
+                  onPressed:
+                      vm.isLoading ? null : () => _changePassword(vm),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16)),
                     elevation: 0,
                   ),
-                  child: _isLoading
+                  child: vm.isLoading
                       ? const SizedBox(
                           width: 20,
                           height: 20,
@@ -262,13 +220,15 @@ class _SecurityPageState extends State<SecurityPage> {
               const SizedBox(height: 8),
               const Text(
                   "Setelah Anda menghapus akun, akun tidak bisa dipulihkan. Jika Anda yakin ingin menghapus, klik tombol dibawah.",
-                  style: TextStyle(fontSize: 13, color: Color(0xFF86868B))),
+                  style: TextStyle(
+                      fontSize: 13, color: Color(0xFF86868B))),
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 height: 55,
                 child: OutlinedButton(
-                  onPressed: _isLoading ? null : _deleteAccount,
+                  onPressed:
+                      vm.isLoading ? null : () => _deleteAccount(vm),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: AppColors.error),
                     shape: RoundedRectangleBorder(
@@ -276,7 +236,8 @@ class _SecurityPageState extends State<SecurityPage> {
                   ),
                   child: const Text("Hapus Akun Saya",
                       style: TextStyle(
-                          color: AppColors.error, fontWeight: FontWeight.bold)),
+                          color: AppColors.error,
+                          fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -308,12 +269,8 @@ class _SecurityPageState extends State<SecurityPage> {
             controller: controller,
             obscureText: obscure,
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return "Wajib diisi";
-              }
-              if (!isConfirm && value.length < 6) {
-                return "Minimal 6 karakter";
-              }
+              if (value == null || value.isEmpty) return "Wajib diisi";
+              if (!isConfirm && value.length < 6) return "Minimal 6 karakter";
               if (isConfirm && value != _newPasswordController.text) {
                 return "Kata sandi tidak cocok";
               }
@@ -321,8 +278,8 @@ class _SecurityPageState extends State<SecurityPage> {
             },
             decoration: InputDecoration(
               border: InputBorder.none,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 14),
               suffixIcon: IconButton(
                 icon: Icon(
                     obscure

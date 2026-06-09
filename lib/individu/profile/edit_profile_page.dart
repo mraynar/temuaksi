@@ -1,11 +1,10 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+
+import '../../viewmodels/profile_viewmodel.dart';
 import '../../theme/app_colors.dart';
 
 class EditProfilePage extends StatefulWidget {
@@ -16,12 +15,6 @@ class EditProfilePage extends StatefulWidget {
 }
 
 class _EditProfilePageState extends State<EditProfilePage> {
-  final User? user = FirebaseAuth.instance.currentUser;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  final String cloudName = "dm4ua5rj6";
-  final String uploadPreset = "temu_aksi_preset";
-
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -29,7 +22,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   File? _imageFile;
   String _currentPhotoUrl = '';
-  bool _isLoading = false;
   DateTime? _selectedDate;
 
   @override
@@ -38,26 +30,22 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _loadUserData();
   }
 
-  void _loadUserData() async {
-    if (user != null) {
-      DocumentSnapshot doc =
-          await _firestore.collection('users').doc(user!.uid).get();
-      if (doc.exists) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        setState(() {
-          _nameController.text = data['nama_lengkap'] ?? '';
-          _emailController.text = data['email'] ?? user!.email ?? '';
-          _phoneController.text = data['nomor_telepon'] ?? '';
-          _currentPhotoUrl = data['photo_url'] ?? '';
+  Future<void> _loadUserData() async {
+    final vm = context.read<ProfileViewModel>();
+    final data = await vm.loadUserData();
+    if (!mounted) return;
+    setState(() {
+      _nameController.text = data['nama_lengkap'] ?? '';
+      _emailController.text = data['email'] ?? vm.currentEmail;
+      _phoneController.text = data['nomor_telepon'] ?? '';
+      _currentPhotoUrl = data['photo_url'] ?? '';
 
-          if (data['tanggal_lahir'] != null) {
-            _selectedDate = (data['tanggal_lahir'] as Timestamp).toDate();
-            _dobController.text =
-                DateFormat('dd MMMM yyyy').format(_selectedDate!);
-          }
-        });
+      if (data['tanggal_lahir'] != null) {
+        _selectedDate = (data['tanggal_lahir'] as dynamic).toDate();
+        _dobController.text =
+            DateFormat('dd MMMM yyyy').format(_selectedDate!);
       }
-    }
+    });
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -90,11 +78,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
     final picker = ImagePicker();
     final pickedFile =
         await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
-
     if (pickedFile != null) {
-      setState(() {
-        _imageFile = File(pickedFile.path);
-      });
+      setState(() => _imageFile = File(pickedFile.path));
     }
   }
 
@@ -105,80 +90,31 @@ class _EditProfilePageState extends State<EditProfilePage> {
     });
   }
 
-  Future<String?> _uploadToCloudinary(File file) async {
-    final url =
-        Uri.parse("https://api.cloudinary.com/v1_1/$cloudName/image/upload");
+  Future<void> _updateProfile(ProfileViewModel vm) async {
+    final success = await vm.updateProfile(
+      namaLengkap: _nameController.text.trim(),
+      nomorTelepon: _phoneController.text.trim(),
+      currentPhotoUrl: _currentPhotoUrl,
+      newImageFile: _imageFile,
+      tanggalLahir: _selectedDate,
+    );
 
-    var request = http.MultipartRequest("POST", url);
-    request.fields['upload_preset'] = uploadPreset;
-    request.files.add(await http.MultipartFile.fromPath('file', file.path));
-
-    try {
-      var response = await request.send();
-      if (response.statusCode == 200) {
-        var responseData = await response.stream.toBytes();
-        var responseString = String.fromCharCodes(responseData);
-        var jsonRes = jsonDecode(responseString);
-        return jsonRes['secure_url'];
-      }
-    } catch (e) {
-      debugPrint("Cloudinary Error: $e");
-    }
-    return null;
-  }
-
-  void _updateProfile() async {
-    if (_nameController.text.isEmpty || _phoneController.text.isEmpty) {
-      _showSnackBar(
-          "Nama dan Nomor Telepon tidak boleh kosong", AppColors.error);
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      String photoUrl = _currentPhotoUrl;
-
-      if (_imageFile != null) {
-        String? newUrl = await _uploadToCloudinary(_imageFile!);
-        if (newUrl != null) {
-          photoUrl = newUrl;
-        } else {
-          throw "Gagal mengunggah foto ke server";
-        }
-      }
-
-      await _firestore.collection('users').doc(user!.uid).update({
-        'nama_lengkap': _nameController.text.trim(),
-        'nomor_telepon': _phoneController.text.trim(),
-        'photo_url': photoUrl,
-        'tanggal_lahir':
-            _selectedDate != null ? Timestamp.fromDate(_selectedDate!) : null,
-      });
-
-      if (!mounted) return;
-      _showSnackBar("Profil berhasil diperbarui!", AppColors.primary);
-      Navigator.pop(context);
-    } catch (e) {
-      if (!mounted) return;
-      _showSnackBar("Gagal memperbarui profil: $e", AppColors.error);
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _showSnackBar(String message, Color color) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: color,
+        content:
+            Text(success ? vm.successMessage! : vm.errorMessage ?? "Error"),
+        backgroundColor: success ? AppColors.primary : AppColors.error,
         behavior: SnackBarBehavior.floating,
       ),
     );
+    if (success) Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<ProfileViewModel>();
+
     return Scaffold(
       backgroundColor: AppColors.neutral,
       appBar: AppBar(
@@ -223,7 +159,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                               : (_currentPhotoUrl.isNotEmpty
                                   ? NetworkImage(_currentPhotoUrl)
                                   : null) as ImageProvider?,
-                          child: _imageFile == null && _currentPhotoUrl.isEmpty
+                          child: _imageFile == null &&
+                                  _currentPhotoUrl.isEmpty
                               ? const Icon(Icons.person_rounded,
                                   size: 70, color: Color(0xFF8E8E93))
                               : null,
@@ -275,14 +212,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-                onPressed: _isLoading ? null : _updateProfile,
+                onPressed: vm.isLoading ? null : () => _updateProfile(vm),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16)),
                   elevation: 0,
                 ),
-                child: _isLoading
+                child: vm.isLoading
                     ? const SizedBox(
                         width: 20,
                         height: 20,
@@ -290,7 +227,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                             color: Colors.white, strokeWidth: 2))
                     : const Text("Simpan",
                         style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold)),
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -356,7 +294,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
             controller: controller,
             enabled: enabled,
             keyboardType: keyboardType,
-            style: TextStyle(color: enabled ? Colors.black : Colors.grey),
+            style:
+                TextStyle(color: enabled ? Colors.black : Colors.grey),
             decoration: const InputDecoration(
               border: InputBorder.none,
               contentPadding:
