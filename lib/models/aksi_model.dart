@@ -33,7 +33,7 @@ class AksiModel {
           ? (data['pointReward'] ?? data['point_reward'] ?? data['poin'] ?? 0) as int
           : int.tryParse((data['pointReward'] ?? data['point_reward'] ?? data['poin'] ?? 0).toString()) ?? 0,
       companyId: (data['companyId'] ?? data['company_id'] ?? data['perusahaan_id'] ?? '').toString(),
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      createdAt: ((data['createdAt'] ?? data['created_at']) as Timestamp?)?.toDate(),
     );
   }
 

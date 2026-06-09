@@ -382,7 +382,7 @@ class _CompanyHomePageState extends State<CompanyHomePage> {
       stream: _firestore
           .collection('proposals')
           .where('perusahaan_id', isEqualTo: uid)
-          .orderBy('createdAt', descending: true)
+          .orderBy('created_at', descending: true)
           .limit(2)
           .snapshots(),
       builder: (context, snapshot) {

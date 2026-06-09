@@ -42,14 +42,23 @@ class HomeViewModel extends ChangeNotifier {
         .doc(uid)
         .snapshots()
         .listen((doc) {
-      if (doc.exists) {
-        _user = UserModel.fromFirestore(doc);
-        final data = doc.data() as Map<String, dynamic>? ?? {};
-        _points = (data['points'] ?? data['poin'] ?? 0) is int
-            ? (data['points'] ?? data['poin'] ?? 0) as int
-            : int.tryParse((data['points'] ?? data['poin'] ?? 0).toString()) ?? 0;
-        notifyListeners();
+      try {
+        if (doc.exists) {
+          _user = UserModel.fromFirestore(doc);
+          final data = doc.data() as Map<String, dynamic>? ?? {};
+          final pts = data['points'] ?? data['poin'] ?? 0;
+          _points = pts is int
+              ? pts
+              : (pts is num
+                  ? pts.toInt()
+                  : (int.tryParse(pts.toString()) ?? 0));
+          notifyListeners();
+        }
+      } catch (e) {
+        debugPrint("Error parsing user points: $e");
       }
+    }, onError: (error) {
+      debugPrint("Error listening to user points: $error");
     });
   }
 
@@ -58,8 +67,8 @@ class HomeViewModel extends ChangeNotifier {
     _setLoading(true);
     try {
       final snapshot = await _firestore
-          .collection('events')
-          .orderBy('createdAt', descending: true)
+          .collection('actions')
+          .orderBy('created_at', descending: true)
           .limit(5)
           .get();
 

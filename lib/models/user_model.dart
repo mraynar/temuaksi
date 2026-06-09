@@ -25,9 +25,11 @@ class UserModel {
       email: (data['email'] ?? '').toString(),
       photoUrl: (data['photo_url'] ?? '').toString(),
       role: (data['role'] ?? 'individu').toString().toLowerCase(),
-      points: (data['points'] ?? 0) is int
+      points: data['points'] is int
           ? data['points'] as int
-          : int.tryParse(data['points'].toString()) ?? 0,
+          : (data['points'] is num
+              ? (data['points'] as num).toInt()
+              : (int.tryParse(data['points']?.toString() ?? '') ?? 0)),
     );
   }
 
