@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+
 import '../../theme/app_colors.dart';
 import '../proposal/pengajuan_proposal_page.dart';
 
+/// DetailAksiPage is a pure View — it receives a DocumentSnapshot as a
+/// display argument (not fetched here). All Firebase reads happen upstream.
 class DetailAksiPage extends StatelessWidget {
   final DocumentSnapshot actionDoc;
 
@@ -61,20 +64,20 @@ class DetailAksiPage extends StatelessWidget {
                           fit: BoxFit.cover,
                           width: double.infinity,
                           errorBuilder: (_, __, ___) => Container(
-                            color: AppColors.primary.withOpacity(0.08),
+                            color: AppColors.primary.withValues(alpha: 0.08),
                             child: Icon(
                               _getCategoryIcon(category),
                               size: 80,
-                              color: AppColors.primary.withOpacity(0.2),
+                              color: AppColors.primary.withValues(alpha: 0.2),
                             ),
                           ),
                         )
                       : Container(
-                          color: AppColors.primary.withOpacity(0.08),
+                          color: AppColors.primary.withValues(alpha: 0.08),
                           child: Icon(
                             _getCategoryIcon(category),
                             size: 80,
-                            color: AppColors.primary.withOpacity(0.2),
+                            color: AppColors.primary.withValues(alpha: 0.2),
                           ),
                         ),
                 ),
@@ -132,7 +135,8 @@ class DetailAksiPage extends StatelessWidget {
                       const SizedBox(height: 16),
                       _buildRowInfo(
                           "Periode", timeline, Icons.calendar_today_rounded),
-                      _buildRowInfo("Waktu Respon", respon, Icons.bolt_rounded),
+                      _buildRowInfo(
+                          "Waktu Respon", respon, Icons.bolt_rounded),
                       _buildRowInfo(
                           "Target Peserta", target, Icons.groups_2_rounded),
                     ],
@@ -340,7 +344,7 @@ class DetailAksiPage extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (context) =>
-                      PengajuanProposalPage(actionDoc: actionDoc), //
+                      PengajuanProposalPage(actionDoc: actionDoc),
                 ),
               );
             },
@@ -362,23 +366,6 @@ class DetailAksiPage extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _getImageName(String category) {
-    switch (category.toLowerCase()) {
-      case 'teknologi':
-        return 'teknologi.png';
-      case 'lingkungan':
-        return 'lingkungan.png';
-      case 'kesehatan':
-        return 'kesehatan.png';
-      case 'olahraga':
-        return 'olahraga.png';
-      case 'sosial & kemanusiaan':
-        return 'sosial dan kemanusiaan.png';
-      default:
-        return 'karakter.png';
-    }
   }
 
   IconData _getCategoryIcon(String category) {

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+
+import '../../viewmodels/explore_viewmodel.dart';
 import '../../theme/app_colors.dart';
-import 'detail_aksi_page.dart'; 
+import 'detail_aksi_page.dart';
 
 class ExplorePage extends StatefulWidget {
   final String? initialCategory;
@@ -15,43 +18,46 @@ class ExplorePage extends StatefulWidget {
 }
 
 class _ExplorePageState extends State<ExplorePage> {
-  String _selectedCategory = 'Semua';
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    if (widget.initialCategory != null) {
-      _selectedCategory = widget.initialCategory!;
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final vm = context.read<ExploreViewModel>();
+      if (widget.initialCategory != null) {
+        vm.filterByCategory(widget.initialCategory!);
+      } else {
+        vm.loadAksiList();
+      }
+    });
   }
 
-  final List<String> _categories = [
-    'Semua',
-    'Teknologi',
-    'Lingkungan',
-    'Sosial & Kemanusiaan',
-    'Kesehatan',
-    'Olahraga',
-  ];
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<ExploreViewModel>();
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          _buildAppBar(),
-          SliverToBoxAdapter(child: _buildCategoryChips()),
-          _buildEventList(),
+          _buildAppBar(vm),
+          SliverToBoxAdapter(child: _buildCategoryChips(vm)),
+          _buildEventList(vm),
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ),
     );
   }
 
-  Widget _buildAppBar() {
+  Widget _buildAppBar(ExploreViewModel vm) {
     return SliverAppBar(
       expandedHeight: 140,
       floating: false,
@@ -76,13 +82,13 @@ class _ExplorePageState extends State<ExplorePage> {
         preferredSize: const Size.fromHeight(60),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-          child: _buildSearchBar(),
+          child: _buildSearchBar(vm),
         ),
       ),
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(ExploreViewModel vm) {
     return Container(
       height: 44,
       decoration: BoxDecoration(
@@ -91,7 +97,7 @@ class _ExplorePageState extends State<ExplorePage> {
       ),
       child: TextField(
         controller: _searchController,
-        onChanged: (val) => setState(() {}),
+        onChanged: vm.searchAksi,
         decoration: InputDecoration(
           prefixIcon:
               const Icon(Icons.search_rounded, color: Color(0xFF8E8E93)),
@@ -107,21 +113,22 @@ class _ExplorePageState extends State<ExplorePage> {
     );
   }
 
-  Widget _buildCategoryChips() {
+  Widget _buildCategoryChips(ExploreViewModel vm) {
     return SizedBox(
       height: 60,
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        itemCount: _categories.length,
+        itemCount: vm.categories.length,
         itemBuilder: (context, index) {
-          final isSelected = _selectedCategory == _categories[index];
+          final cat = vm.categories[index];
+          final isSelected = vm.selectedCategory == cat;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: FilterChip(
               selected: isSelected,
-              label: Text(_categories[index]),
+              label: Text(cat),
               labelStyle: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
@@ -129,9 +136,7 @@ class _ExplorePageState extends State<ExplorePage> {
               ),
               backgroundColor: const Color(0xFFF2F2F7),
               selectedColor: AppColors.primary,
-              onSelected: (val) {
-                setState(() => _selectedCategory = _categories[index]);
-              },
+              onSelected: (_) => vm.filterByCategory(cat),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
                 side: const BorderSide(color: Colors.transparent),
@@ -144,15 +149,12 @@ class _ExplorePageState extends State<ExplorePage> {
     );
   }
 
-  Widget _buildEventList() {
-    Query query = FirebaseFirestore.instance.collection('actions');
-
-    if (_selectedCategory != 'Semua') {
-      query = query.where('category', isEqualTo: _selectedCategory);
-    }
-
+  Widget _buildEventList(ExploreViewModel vm) {
+    // Use live stream from ViewModel for real-time updates
     return StreamBuilder<QuerySnapshot>(
-      stream: query.snapshots(),
+      stream: vm.streamAksiList(
+        category: vm.selectedCategory == 'Semua' ? null : vm.selectedCategory,
+      ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const SliverToBoxAdapter(
@@ -166,10 +168,13 @@ class _ExplorePageState extends State<ExplorePage> {
         }
 
         final docs = snapshot.data?.docs ?? [];
-        final filteredDocs = docs.where((doc) {
-          final title = (doc['title'] ?? '').toString().toLowerCase();
-          return title.contains(_searchController.text.toLowerCase());
-        }).toList();
+        final query = vm.searchQuery.toLowerCase();
+        final filteredDocs = query.isEmpty
+            ? docs
+            : docs.where((doc) {
+                final title = (doc['title'] ?? '').toString().toLowerCase();
+                return title.contains(query);
+              }).toList();
 
         if (filteredDocs.isEmpty) {
           return SliverFillRemaining(
@@ -255,24 +260,24 @@ class _ExplorePageState extends State<ExplorePage> {
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
                             height: 160,
-                            color: AppColors.primary.withOpacity(0.1),
+                            color: AppColors.primary.withValues(alpha: 0.1),
                             child: Center(
                               child: Icon(
                                 _getCategoryIcon(category),
                                 size: 50,
-                                color: AppColors.primary.withOpacity(0.3),
+                                color: AppColors.primary.withValues(alpha: 0.3),
                               ),
                             ),
                           ),
                         )
                       : Container(
                           height: 160,
-                          color: AppColors.primary.withOpacity(0.1),
+                          color: AppColors.primary.withValues(alpha: 0.1),
                           child: Center(
                             child: Icon(
                               _getCategoryIcon(category),
                               size: 50,
-                              color: AppColors.primary.withOpacity(0.3),
+                              color: AppColors.primary.withValues(alpha: 0.3),
                             ),
                           ),
                         ),
@@ -281,8 +286,8 @@ class _ExplorePageState extends State<ExplorePage> {
                   top: 15,
                   right: 15,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(20),
@@ -358,7 +363,7 @@ class _ExplorePageState extends State<ExplorePage> {
                       ),
                       Container(
                         padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           color: AppColors.primary,
                           shape: BoxShape.circle,
                         ),
